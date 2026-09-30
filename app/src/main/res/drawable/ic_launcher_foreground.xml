@@ -9,9 +9,9 @@
         android:fillColor="#00000000"
         android:pathData="M36,64 Q54,30 72,64"
         android:strokeWidth="6"
-        android:strokeColor="#FFFFFFFF"
+        android:strokeColor="#FF1F1B00"
         android:strokeLineCap="round" />
     <path
-        android:fillColor="#FFFFFFFF"
+        android:fillColor="#FF1F1B00"
         android:pathData="M54,70m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
 </vector>
