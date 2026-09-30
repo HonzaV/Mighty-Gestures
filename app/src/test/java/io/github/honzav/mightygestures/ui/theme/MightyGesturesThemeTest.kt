@@ -2,13 +2,16 @@ package io.github.honzav.mightygestures.ui.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -45,12 +48,27 @@ class MightyGesturesThemeTest {
     }
 
     @Test
+    @Config(sdk = [35])
     fun dynamicDarkScheme_isUsedOnAndroid12Plus() {
-        assertNotNull(captureScheme(darkTheme = true, dynamicColor = true))
+        val expected = dynamicDarkColorScheme(RuntimeEnvironment.getApplication())
+        val actual = captureScheme(darkTheme = true, dynamicColor = true)
+        assertSameColors(expected, actual)
+        assertNotEquals(DarkColors.primary, actual.primary)
     }
 
     @Test
+    @Config(sdk = [35])
     fun dynamicLightScheme_isUsedOnAndroid12Plus() {
-        assertNotNull(captureScheme(darkTheme = false, dynamicColor = true))
+        val expected = dynamicLightColorScheme(RuntimeEnvironment.getApplication())
+        val actual = captureScheme(darkTheme = false, dynamicColor = true)
+        assertSameColors(expected, actual)
+        assertNotEquals(LightColors.primary, actual.primary)
+    }
+
+    private fun assertSameColors(expected: ColorScheme, actual: ColorScheme) {
+        assertEquals(expected.primary, actual.primary)
+        assertEquals(expected.secondary, actual.secondary)
+        assertEquals(expected.tertiary, actual.tertiary)
+        assertEquals(expected.background, actual.background)
     }
 }
