@@ -35,6 +35,8 @@ launching apps). Users must be able to trust that it does exactly what they conf
 **Data**
 - [ ] Sensor data processed in memory only; debug recordings are opt-in, stored in app-private storage, and
       deletable from the UI.
+- [ ] Gesture templates (spec 0001 decision 1) store only the recorded movement window, stay app-private, are
+      excluded from cloud backup and device transfer (`dataExtractionRules`), and are deleted with the gesture.
 - [ ] No logging of sensor values, app usage, or identifiers in release builds.
 - [ ] No WebView. If ever needed: no JavaScript bridge, no file access.
 

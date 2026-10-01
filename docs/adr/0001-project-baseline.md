@@ -45,3 +45,6 @@ editing `AGENTS.md` and noting it here, or supersede this ADR.
   plain Kotlin. (The no-`INTERNET` default above would additionally rule out any network feature.)
 - Open decisions (module layout, DI, persistence, application ID, foreground-service type, detection approach)
   require their own ADRs before implementation depends on them.
+  *Update 2026-10-01: all of them are now settled: application ID by ADR 0002; module layout, domain model, DI,
+  persistence, always-on host (AccessibilityService, no FGS), detection and navigation by ADRs 0003–0009
+  (accepted with spec 0001).*

@@ -9,8 +9,10 @@ between Android versions.
 - **Background sensor access.** Since Android 9, apps in the background do not receive events from
   continuous-reporting sensors (accelerometer, gyroscope). Always-on detection therefore needs a component the
   system treats as foreground: a **foreground service** (with a visible notification) or a bound system service
-  such as an **AccessibilityService**. Which one (or both) is an ADR decision; each has privacy, UX and F-Droid
-  review implications.
+  such as an **AccessibilityService**. Decided in ADR 0007: an AccessibilityService only, with no FGS. Delivery
+  of sensor events through the accessibility binding is *inferred* from AOSP source and gated by spec 0001
+  AC-H2. Because the binding keeps the UID active even with the screen off, **our own code must unregister
+  sensors on screen off**.
 - **Foreground-service types.** Since Android 14 every FGS must declare `android:foregroundServiceType` and hold
   the matching `FOREGROUND_SERVICE_<TYPE>` permission. No type is a perfect fit for "listen to motion sensors";
   `specialUse` (with a `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` explanation) is the usual candidate. Android 15 limits

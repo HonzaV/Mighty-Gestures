@@ -48,8 +48,13 @@ Every gesture detector must have:
 Rules:
 - Negative traces matter more than positive ones: a false trigger (e.g. toggling the flashlight in a pocket)
   is a worse bug than a missed gesture. Track a **false-positive budget** per detector in its spec.
-- Synthetic traces come from a generator in test code (deterministic seed). Real traces are recorded on devices
-  with the in-app debug recorder (when it exists) and committed with a short note on the device and situation.
+- Synthetic traces come from a generator in test code (deterministic seed). Every trace file carries a
+  `# source=synthetic|device …` metadata header (ADR 0008); synthetic data is never presented as a human
+  recording.
+- **Current state: synthetic only** (spec 0001 decision 5). There are no real-device traces and no in-app
+  recorder. Thresholds tuned on synthetic data are provisional. Real-motion validation is a release gate
+  (spec 0001 AC-R1); the spec that closes it defines how real traces are obtained and committed.
+- Calibrate on tuning seeds and verify on held-out seeds that were never used for tuning.
 - Never tune thresholds to make one trace pass without re-running the whole corpus.
 - Keep traces small (seconds, not minutes); long negative recordings can be split.
 
