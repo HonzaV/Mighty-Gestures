@@ -34,6 +34,18 @@ class MightyGesturesThemeTest {
     }
 
     @Test
+    fun spacingTokens_areProvidedByTheme() {
+        var spacing: Spacing? = null
+        composeRule.setContent {
+            MightyGesturesTheme {
+                spacing = MaterialTheme.spacing
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(Spacing(), spacing)
+    }
+
+    @Test
     fun staticLightScheme_isUsedWhenDynamicColorDisabled() {
         assertEquals(LightColors.primary, captureScheme(darkTheme = false, dynamicColor = false).primary)
     }

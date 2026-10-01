@@ -15,8 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewFontScale
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import cz.mightybities.mightygestures.R
+import cz.mightybities.mightygestures.ui.theme.MightyGesturesTheme
+import cz.mightybities.mightygestures.ui.theme.spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,7 +36,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(24.dp),
+                    .padding(MaterialTheme.spacing.large),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -48,10 +52,22 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 textAlign = TextAlign.Center,
                 modifier =
                     Modifier
-                        .padding(top = 8.dp)
+                        .padding(top = MaterialTheme.spacing.small)
                         .testTag(HomeScreenTags.SUBTITLE),
             )
         }
+    }
+}
+
+// Pseudo-locales need isPseudoLocalesEnabled in the debug build type: en-XA = long accented text, ar-XB = RTL.
+@PreviewLightDark
+@PreviewFontScale
+@Preview(name = "Long text (en-XA)", locale = "en-rXA")
+@Preview(name = "RTL (ar-XB)", locale = "ar-rXB")
+@Composable
+private fun HomeScreenPreview() {
+    MightyGesturesTheme {
+        HomeScreen()
     }
 }
 

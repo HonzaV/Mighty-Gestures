@@ -8,3 +8,6 @@ style:
     # Named top-level/companion constants are the fix MagicNumber asks for (e.g. Compose color tokens in ui/theme).
     ignorePropertyDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
+  UnusedPrivateMember:
+    # @Preview composables are invoked by Android Studio tooling, never from code.
+    ignoreAnnotated: ['Preview', 'PreviewLightDark', 'PreviewFontScale', 'PreviewScreenSizes', 'PreviewDynamicColors']

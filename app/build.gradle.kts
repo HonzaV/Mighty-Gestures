@@ -20,6 +20,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // en-XA / ar-XB for long-text and RTL checks (docs/engineering/compose-ui.md); never in release.
+            isPseudoLocalesEnabled = true
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(
