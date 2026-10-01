@@ -13,9 +13,21 @@
 # com.google.dagger, com.google.truth, com.google.protobuf, com.google.code.gson, com.google.guava.
 set -euo pipefail
 
-FORBIDDEN='com\.google\.android\.gms|com\.google\.gms|com\.google\.firebase|com\.google\.mlkit|com\.google\.android\.play[.:]|com\.google\.android\.ump|com\.google\.android\.libraries\.(places|maps|ads)|com\.google\.android\.datatransport|com\.google\.android\.recaptcha|com\.google\.ads|com\.google\.ar[.:]|com\.android\.billingclient|com\.crashlytics|io\.fabric|io\.sentry|com\.bugsnag|com\.appsflyer|com\.amplitude|com\.mixpanel|com\.onesignal|com\.flurry|com\.facebook\.android'
-# Lines that are only comments are ignored (// # * <!--).
-COMMENT='[[:space:]]*(//|#|\*|/\*|<!--)'
+# Google proprietary SDKs (and Huawei HMS, the same problem with another vendor), then analytics / crash /
+# attribution / engagement SDKs. Best effort: the dependency policy review (docs/engineering/f-droid.md) is the
+# real gate for anything not listed here.
+FORBIDDEN_PARTS=(
+  'com\.google\.android\.gms' 'com\.google\.gms' 'com\.google\.firebase' 'com\.google\.mlkit'
+  'com\.google\.android\.play[.:]' 'com\.google\.android\.ump' 'com\.google\.android\.libraries\.(places|maps|ads)'
+  'com\.google\.android\.datatransport' 'com\.google\.android\.recaptcha' 'com\.google\.ads' 'com\.google\.ar[.:]'
+  'com\.android\.billingclient' 'com\.huawei\.(hms|agconnect)'
+  'com\.crashlytics' 'io\.fabric' 'io\.sentry' 'com\.bugsnag' 'com\.instabug' 'io\.embrace' 'com\.newrelic'
+  'com\.datadoghq' 'com\.microsoft\.appcenter' 'com\.appsflyer' 'com\.adjust\.sdk' 'io\.branch'
+  'com\.kochava' 'com\.singular' 'com\.amplitude' 'com\.mixpanel' 'com\.segment\.analytics'
+  'com\.posthog' 'app\.posthog' 'com\.heapanalytics' 'com\.onesignal' 'com\.braze' 'com\.appboy'
+  'com\.flurry' 'com\.yandex\.(metrica|mobile\.ads)' 'com\.facebook\.(android|appevents)'
+)
+FORBIDDEN="$(IFS='|'; echo "${FORBIDDEN_PARTS[*]}")"
 
 is_scanned_path() {
   local p="${1#./}"
@@ -29,7 +41,29 @@ is_scanned_path() {
 }
 
 scan_stream() { # $1 = label; reads stdin; prints label:line: text for violations
-  grep -nE "$FORBIDDEN" | grep -vE "^[0-9]+:$COMMENT" | sed "s|^|$1:|" || true
+  # Inline /* */ and <!-- --> comments are removed before matching, so code after a comment is still scanned.
+  # Multi-line comments are tracked across lines. A line is ignored only when what remains is a comment.
+  FORBIDDEN_RE="$FORBIDDEN" awk -v label="$1" '
+    BEGIN { re = ENVIRON["FORBIDDEN_RE"] }
+    # strip(): remove opn..cls comments from s; an unclosed one sets open_c[opn] so following lines are
+    # treated as comment until cls appears.
+    function strip(s, opn, cls,   i, j, rest) {
+      if (open_c[opn]) {
+        if ((j = index(s, cls)) == 0) return ""
+        s = substr(s, j + length(cls)); open_c[opn] = 0
+      }
+      while ((i = index(s, opn)) > 0) {
+        rest = substr(s, i + length(opn)); j = index(rest, cls)
+        if (j == 0) { open_c[opn] = 1; return substr(s, 1, i - 1) }
+        s = substr(s, 1, i - 1) " " substr(rest, j + length(cls))
+      }
+      return s
+    }
+    {
+      code = strip(strip($0, "/*", "*/"), "<!--", "-->")
+      if (code ~ /^[[:space:]]*(\/\/|#|\*|$)/) next
+      if (code ~ re) print label ":" NR ":" $0
+    }'
 }
 
 if [[ "${1:-}" == "--stdin" ]]; then
@@ -81,4 +115,4 @@ if [[ -n "$hits" ]]; then
   printf 'Google-free violation (see AGENTS.md §2) — remove these references:\n%s' "$hits"
   exit 1
 fi
-echo "check-no-gms: OK (no Google proprietary or tracking dependencies found)"
+echo "check-no-gms: OK (no known Google proprietary or tracking dependencies found)"

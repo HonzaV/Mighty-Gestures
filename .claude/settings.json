@@ -21,6 +21,13 @@
       "Bash(git reset --hard*)",
       "Bash(git rebase*)",
       "Bash(git branch -D*)",
+      "Bash(git branch * --delete *)",
+      "Bash(git branch * -D *)",
+      "Bash(git branch * -d *)",
+      "Bash(git branch --delete*)",
+      "Bash(git branch -d*)",
+      "Bash(git commit * --amend*)",
+      "Bash(git commit --amend*)",
       "Bash(gh pr create*)",
       "Bash(gh pr merge*)",
       "Bash(gh release*)"

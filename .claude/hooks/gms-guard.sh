@@ -40,10 +40,16 @@ sys.stdout.write(text)' <<<"$input")"
       fi ;;
     *) exit 0 ;;
   esac
-  out="$(printf '%s\n' "$text" | "$CHECK" --stdin "$rel" 2>&1)"
+  out="$(printf '%s\n' "$text" | "$CHECK" --stdin "$rel" 2>&1)"; rc=$?
   if [[ "$out" == "Google-free violation"* ]]; then
     jq -n --arg r "$out
 Mighty Gestures must stay Google-free and tracker-free. Use an AndroidX/FOSS alternative, or ask the maintainer to approve an ADR." \
+      '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $r}}'
+  elif (( rc != 0 )); then
+    # Fail closed for scanned files: a broken checker must not silently let dependencies through.
+    jq -n --arg r "gms-guard could not check $rel because scripts/check-no-gms.sh failed (exit $rc):
+$out
+Fix the checker (or tell the maintainer) before editing build files." \
       '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $r}}'
   fi
   exit 0

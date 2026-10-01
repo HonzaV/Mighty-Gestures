@@ -19,7 +19,12 @@ ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 MIN_API="${MIN_API:-35}"
 AVD_NAME="${AVD_NAME:-mg_api35}"
 WITH_EMULATOR=0
-[[ "${1:-}" == "--with-emulator" ]] && WITH_EMULATOR=1
+case "$#:${1:-}" in
+  0:) ;;
+  1:--with-emulator) WITH_EMULATOR=1 ;;
+  1:-h|1:--help) sed -n '2,15p' "$0"; exit 0 ;;
+  *) echo "usage: $0 [--with-emulator]" >&2; exit 2 ;;
+esac
 
 log() { printf '\033[1;34m[setup-android-sdk]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[setup-android-sdk]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -80,12 +85,16 @@ log "Querying available packages..."
 LIST="$("$SDKMANAGER" --list 2>/dev/null)"
 # cmdline-tools <= 19 print package paths as "platforms;android-35", newer ones as "platforms/android-35".
 if grep -qE '^\s*platforms/android-' <<<"$LIST"; then S='/'; else S=';'; fi
-LATEST_API="$(grep -oE "^\s*platforms${S}android-[0-9]+\s" <<<"$LIST" | grep -oE '[0-9]+' | sort -n | tail -1 || true)"
+# Latest stable *major* platform. Since API 36.1 packages may be named "android-NN.M"; the major release is
+# "android-NN" or "android-NN.0". Previews (-beta, letters), extension (-extNN) and minor (.1+) packages are skipped.
+LATEST_PLATFORM="$(grep -oE "^\s*platforms${S}android-[0-9]+(\.0)?\s" <<<"$LIST" | grep -oE 'android-[0-9.]+' \
+  | sort -t- -k2 -V | tail -1 || true)"
+LATEST_API="${LATEST_PLATFORM#android-}"; LATEST_API="${LATEST_API%.0}"
 LATEST_BT="$(grep -oE "^\s*build-tools${S}[0-9]+\.[0-9]+\.[0-9]+\s" <<<"$LIST" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -1 || true)"
 [[ -n "$LATEST_API" && -n "$LATEST_BT" ]] || die "could not resolve platform/build-tools versions from 'sdkmanager --list'"
 
 PKGS=("platform-tools" "build-tools${S}$LATEST_BT" "platforms${S}android-$MIN_API")
-[[ "$LATEST_API" != "$MIN_API" ]] && PKGS+=("platforms${S}android-$LATEST_API")
+[[ "$LATEST_API" != "$MIN_API" ]] && PKGS+=("platforms${S}$LATEST_PLATFORM")
 
 if (( WITH_EMULATOR )); then
   [[ -e /dev/kvm ]] || die "/dev/kvm not available - the emulator needs KVM acceleration"
