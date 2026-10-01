@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Mighty Gestures</string>
+    <string name="home_title">Welcome to Mighty Gestures</string>
+    <string name="home_subtitle">Automate your device with motion gestures.</string>
+</resources>

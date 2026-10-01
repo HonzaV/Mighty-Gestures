@@ -45,12 +45,12 @@ Build v1 only, but never paint v2/v3 into a corner: see the trigger → action m
 | Language | Kotlin only (no Java sources). Coroutines + Flow for async. |
 | UI | Jetpack Compose + Material 3. No XML layouts or Fragments. Single-activity. |
 | SDK levels | `minSdk 35` (Android 15). `compileSdk`/`targetSdk` = latest **stable** major API (37 at time of writing — re-check `sdkmanager --list` / `android sdk list`). |
-| Build | Gradle Kotlin DSL, version catalog `gradle/libs.versions.toml`, JDK 17 toolchain, no dynamic versions (`+`, `latest.release`). |
+| Build | Gradle Kotlin DSL, version catalog `gradle/libs.versions.toml`, JDK 21 to build and test (bytecode target Java 17), no dynamic versions (`+`, `latest.release`). |
 | Formatting / static analysis | Spotless + ktlint (`.editorconfig`), detekt, Android Lint (warnings as errors for new code). |
 | Testing | JUnit 4, kotlinx-coroutines-test, Turbine, Robolectric, Compose UI test. Details: `docs/engineering/testing.md`. |
 
 Decisions that are **still open** and must be settled by an ADR from the architect before code depends on them:
-module layout, DI approach, persistence (DataStore vs Room), application ID / package name, foreground-service
+module layout, DI approach, persistence (DataStore vs Room), foreground-service
 type for always-on sensing, gesture-detection approach. Open/accepted ADRs live in `docs/adr/`.
 
 ## 4. Architecture principles
@@ -84,7 +84,7 @@ type for always-on sensing, gesture-detection approach. Open/accepted ADRs live 
 ## 6. Commands
 
 Environment: Android SDK at `$ANDROID_HOME` (default `~/Android/Sdk`, installed by `scripts/setup-android-sdk.sh`),
-JDK 17+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
+JDK 21+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
 
 | Purpose | Command |
 |---|---|
@@ -107,9 +107,19 @@ The project scaffold **must** provide the Gradle tasks above under these exact n
 - **Spec first** for anything beyond a small fix: `docs/specs/NNNN-slug.md` (template `docs/specs/0000-template.md`).
   Architectural decisions go to `docs/adr/NNNN-slug.md` (template `docs/adr/0000-template.md`).
 - **Branch per task:** `feat/…`, `fix/…`, `chore/…`, `docs/…`, `test/…` from up-to-date `main`. Never commit to `main` directly.
-- **Conventional Commits** (`feat(detector): add flip-face-down gesture`). One logical change per commit.
-- **PR to `main`** with the template checklist filled in. Agents may commit on their branch but must **ask before
-  pushing, opening/merging PRs, force-pushing, rewriting history, or deleting branches**.
+- **[Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)** for every commit message
+  **and every PR title**, because a squash merge turns the title into the commit on `main`:
+  `<type>(<optional scope>): <description>`, e.g. `feat(detector): add flip-face-down gesture`.
+  - Types: `feat` (user-visible feature), `fix` (bug fix), `docs`, `test`, `refactor`, `perf`, `style`
+    (formatting only), `build` (Gradle, dependencies, SDK), `ci`, `chore`, `revert`.
+  - Scope (optional): the area touched, e.g. `detector`, `rule`, `action`, `ui`, `service`, `data`, `harness`.
+  - Description: imperative, lowercase, no trailing period; keep the header ≤ 72 characters.
+  - Breaking change: `!` after the type/scope (`feat(rule)!: …`) plus a `BREAKING CHANGE:` footer.
+  - Body explains *why*; footers carry trailers (`Refs: #12`, `Co-Authored-By: …`).
+  - One logical change per commit.
+- **PR to `main`** with a Conventional Commits title and the template checklist filled in. Agents may commit on
+  their branch but must **ask before pushing, opening/merging PRs, force-pushing, rewriting history, or deleting
+  branches**.
 - **Definition of done:** spec acceptance criteria met · `scripts/verify.sh` green · tests added for new behavior
   (detectors: positive *and* negative traces) · docs/ADR/CHANGELOG updated · reviewer findings resolved or
   explicitly deferred with a reason.

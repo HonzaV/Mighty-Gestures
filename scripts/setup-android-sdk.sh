@@ -31,7 +31,7 @@ die() { printf '\033[1;31m[setup-android-sdk]\033[0m %s\n' "$*" >&2; exit 1; }
 
 for cmd in java curl unzip; do command -v "$cmd" >/dev/null || die "missing required tool: $cmd"; done
 JAVA_MAJOR="$(java -version 2>&1 | awk -F'"' '/version/ {split($2,v,"."); print v[1]}')"
-(( JAVA_MAJOR >= 17 )) || die "JDK 17+ required (found $JAVA_MAJOR). Install Temurin 17 or 21."
+(( JAVA_MAJOR >= 21 )) || die "JDK 21+ required (found $JAVA_MAJOR). Install Temurin 21."
 
 REPO_XML="https://dl.google.com/android/repository/repository2-3.xml"
 SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"

@@ -1,3 +1,6 @@
+<!-- PR title: Conventional Commits, e.g. `feat(detector): add flip-face-down gesture` (AGENTS.md §7).
+     The title becomes the commit message on `main` when the PR is squash-merged. -->
+
 ## What & why
 <!-- Link the spec (docs/specs/NNNN-…) and ADRs. Summarize the change in 2–5 bullets. -->
 
@@ -17,6 +20,7 @@
 - [ ] Battery impact measured for changes to sensors/service/wakeups (numbers below) — or N/A
 - [ ] UI: edge-to-edge, dark mode, font scale, TalkBack labels checked — or N/A
 - [ ] Docs / ADR / `CHANGELOG.md` updated
+- [ ] PR title and all commit messages follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 ## Measurements / screenshots
 <!-- dumpsys sensorservice rates, batterystats wakeups, screenshots before/after -->
