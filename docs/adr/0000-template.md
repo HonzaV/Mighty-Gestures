@@ -1,0 +1,26 @@
+# ADR NNNN — <Decision title>
+
+- **Status:** Proposed | Accepted | Rejected | Superseded by ADR-XXXX
+- **Date:** YYYY-MM-DD
+- **Deciders:** maintainer, architect (agent)
+
+## Context
+The forces at play: requirements, constraints (Google-free, F-Droid, minSdk 35, battery, privacy), and what
+the platform allows (cite official docs).
+
+## Options considered
+### Option A — …
+- Pros: …
+- Cons: …
+### Option B — …
+
+## Decision
+We choose **…** because …
+
+## Consequences
+- Positive: …
+- Negative / accepted trade-offs: …
+- Follow-ups: …
+
+## References
+- <links to Android docs, specs, issues>
