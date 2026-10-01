@@ -16,3 +16,4 @@ versioning: [SemVer](https://semver.org/).
 
 ### Changed
 - Builds and tests require JDK 21 (was JDK 17); bytecode still targets Java 17.
+- Conventional Commits 1.0.0 now spelled out in `AGENTS.md` and required for PR titles too; PR template updated.
