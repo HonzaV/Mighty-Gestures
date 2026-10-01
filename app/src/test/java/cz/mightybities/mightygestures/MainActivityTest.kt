@@ -1,10 +1,10 @@
-package io.github.honzav.mightygestures
+package cz.mightybities.mightygestures
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import io.github.honzav.mightygestures.ui.HomeScreenTags
+import cz.mightybities.mightygestures.ui.HomeScreenTags
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -12,7 +12,6 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class MainActivityTest {
-
     @get:Rule
     val composeRule = createAndroidComposeRule<MainActivity>()
 

@@ -1,4 +1,4 @@
-package io.github.honzav.mightygestures.ui.theme
+package cz.mightybities.mightygestures.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

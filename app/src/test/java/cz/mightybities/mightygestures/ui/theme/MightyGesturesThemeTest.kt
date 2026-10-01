@@ -1,4 +1,4 @@
-package io.github.honzav.mightygestures.ui.theme
+package cz.mightybities.mightygestures.ui.theme
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -16,11 +16,13 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 class MightyGesturesThemeTest {
-
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun captureScheme(darkTheme: Boolean, dynamicColor: Boolean): ColorScheme {
+    private fun captureScheme(
+        darkTheme: Boolean,
+        dynamicColor: Boolean,
+    ): ColorScheme {
         var scheme: ColorScheme? = null
         composeRule.setContent {
             MightyGesturesTheme(darkTheme = darkTheme, dynamicColor = dynamicColor) {
@@ -42,14 +44,8 @@ class MightyGesturesThemeTest {
     }
 
     @Test
-    @Config(sdk = [30])
-    fun staticScheme_isUsedBelowAndroid12EvenWithDynamicColor() {
-        assertEquals(LightColors.primary, captureScheme(darkTheme = false, dynamicColor = true).primary)
-    }
-
-    @Test
     @Config(sdk = [35])
-    fun dynamicDarkScheme_isUsedOnAndroid12Plus() {
+    fun dynamicDarkScheme_isUsedWhenEnabled() {
         val expected = dynamicDarkColorScheme(RuntimeEnvironment.getApplication())
         val actual = captureScheme(darkTheme = true, dynamicColor = true)
         assertSameColors(expected, actual)
@@ -58,14 +54,17 @@ class MightyGesturesThemeTest {
 
     @Test
     @Config(sdk = [35])
-    fun dynamicLightScheme_isUsedOnAndroid12Plus() {
+    fun dynamicLightScheme_isUsedWhenEnabled() {
         val expected = dynamicLightColorScheme(RuntimeEnvironment.getApplication())
         val actual = captureScheme(darkTheme = false, dynamicColor = true)
         assertSameColors(expected, actual)
         assertNotEquals(LightColors.primary, actual.primary)
     }
 
-    private fun assertSameColors(expected: ColorScheme, actual: ColorScheme) {
+    private fun assertSameColors(
+        expected: ColorScheme,
+        actual: ColorScheme,
+    ) {
         assertEquals(expected.primary, actual.primary)
         assertEquals(expected.secondary, actual.secondary)
         assertEquals(expected.tertiary, actual.tertiary)

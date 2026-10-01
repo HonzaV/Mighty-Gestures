@@ -1,0 +1,10 @@
+# Overrides on top of detekt's default config (buildUponDefaultConfig = true).
+naming:
+  FunctionNaming:
+    # Composable functions are PascalCase by convention (same exemption as ktlint in .editorconfig).
+    ignoreAnnotated: ['Composable']
+style:
+  MagicNumber:
+    # Named top-level/companion constants are the fix MagicNumber asks for (e.g. Compose color tokens in ui/theme).
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true

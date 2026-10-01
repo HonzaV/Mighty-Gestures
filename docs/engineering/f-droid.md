@@ -15,7 +15,9 @@ or adds Anti-Features to the listing.
   }
   ```
 - No dynamic or `SNAPSHOT` versions; everything pinned in `gradle/libs.versions.toml`.
-- Repositories: `google()` and `mavenCentral()` only. No JitPack or custom repos without an ADR.
+- Repositories: `google()` and `mavenCentral()` for dependencies; `gradlePluginPortal()` is allowed only in
+  `pluginManagement` for Gradle build plugins (e.g. Spotless, detekt), with a `content { includeGroup(...) }`
+  filter listing exactly those plugin groups. No JitPack or custom repos without an ADR.
 - No build-time non-determinism: no timestamps, git hashes of dirty trees, random values, or machine paths in
   `BuildConfig`, resources or the manifest. `versionCode` / `versionName` are set explicitly in Gradle.
 - No prebuilt binaries (`.jar`, `.aar`, `.so`) committed to the repo.

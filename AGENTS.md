@@ -50,7 +50,7 @@ Build v1 only, but never paint v2/v3 into a corner: see the trigger → action m
 | Testing | JUnit 4, kotlinx-coroutines-test, Turbine, Robolectric, Compose UI test. Details: `docs/engineering/testing.md`. |
 
 Decisions that are **still open** and must be settled by an ADR from the architect before code depends on them:
-module layout, DI approach, persistence (DataStore vs Room), application ID / package name, foreground-service
+module layout, DI approach, persistence (DataStore vs Room), foreground-service
 type for always-on sensing, gesture-detection approach. Open/accepted ADRs live in `docs/adr/`.
 
 ## 4. Architecture principles

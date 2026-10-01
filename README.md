@@ -3,23 +3,26 @@ Android google free app for automating motion gestures. More incoming.
 
 ## Tech stack
 
-- Kotlin + Jetpack Compose with Material 3
-- No Google Play Services / Firebase — enforced by `./gradlew :app:verifyNoGoogleServices`
+- Kotlin + Jetpack Compose with Material 3, Android 15+ (`minSdk 35`)
+- No Google Play Services / Firebase / trackers — enforced by `scripts/check-no-gms.sh`
 - Unit tests run on the JVM via Robolectric
 
 ## Building
 
-Requires JDK 17+ (JDK 21 recommended) and the Android SDK (API 35).
+Requires JDK 21+ (unit tests run Robolectric's Java 21 SDK 37 runtime) and the Android SDK (`scripts/setup-android-sdk.sh`).
 
 ```sh
+scripts/verify.sh                            # full verification: Google-free check, Spotless, detekt, lint, unit tests
 ./gradlew :app:assembleDebug                 # build debug APK
-./gradlew :app:testDebugUnitTest             # run unit tests
 ./gradlew :app:jacocoCoverageVerification    # tests + enforce 75 % line coverage
+./gradlew spotlessApply                      # format
 ```
 
 The coverage HTML report is written to `app/build/reports/jacoco/jacocoTestReport/html/`.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request: it checks for forbidden Google
-dependencies, builds the debug APK, runs unit tests and fails if line coverage drops below 75 %.
+`.github/workflows/ci.yml` runs on every pull request and push to `main`: `scripts/verify.sh`, the coverage gate
+(fails below 75 % line coverage) and the debug APK build.
+
+Contributors and AI agents: see [`AGENTS.md`](AGENTS.md).

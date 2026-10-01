@@ -1,11 +1,11 @@
-package io.github.honzav.mightygestures
+package cz.mightybities.mightygestures
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import io.github.honzav.mightygestures.ui.HomeScreen
-import io.github.honzav.mightygestures.ui.theme.MightyGesturesTheme
+import cz.mightybities.mightygestures.ui.HomeScreen
+import cz.mightybities.mightygestures.ui.theme.MightyGesturesTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

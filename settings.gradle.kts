@@ -8,7 +8,13 @@ pluginManagement {
             }
         }
         mavenCentral()
-        gradlePluginPortal()
+        // Build plugins only (docs/engineering/f-droid.md); everything else must come from Google Maven / Central.
+        gradlePluginPortal {
+            content {
+                includeGroup("com.diffplug.spotless")
+                includeGroup("io.gitlab.arturbosch.detekt")
+            }
+        }
     }
 }
 

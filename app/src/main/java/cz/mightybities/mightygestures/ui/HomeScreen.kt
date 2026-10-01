@@ -1,4 +1,4 @@
-package io.github.honzav.mightygestures.ui
+package cz.mightybities.mightygestures.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import io.github.honzav.mightygestures.R
+import cz.mightybities.mightygestures.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,10 +28,11 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(24.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -45,9 +46,10 @@ fun HomeScreen(modifier: Modifier = Modifier) {
                 text = stringResource(R.string.home_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .padding(top = 8.dp)
-                    .testTag(HomeScreenTags.SUBTITLE),
+                modifier =
+                    Modifier
+                        .padding(top = 8.dp)
+                        .testTag(HomeScreenTags.SUBTITLE),
             )
         }
     }
