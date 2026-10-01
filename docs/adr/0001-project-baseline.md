@@ -28,7 +28,8 @@ editing `AGENTS.md` and noting it here, or supersede this ADR.
 - No `INTERNET` permission, no telemetry (privacy by construction).
 - Kotlin-only sources; single-activity Compose app without Fragments.
 - JUnit 4 + kotlinx-coroutines-test + Turbine + Robolectric; Truth or kotlin.test assertions.
-- Spotless + ktlint (`ktlint_official`) + detekt + Android Lint; JDK 17 toolchain.
+- Spotless + ktlint (`ktlint_official`) + detekt + Android Lint; JDK 21 to build and test, bytecode target Java 17.
+  *Changed 2026-10-01 by the maintainer from "JDK 17 toolchain": Robolectric's SDK 37 runtime is Java 21 bytecode.*
 - Emulator AVD `mg_api35` on the AOSP image (no Google APIs).
 
 ## Consequences

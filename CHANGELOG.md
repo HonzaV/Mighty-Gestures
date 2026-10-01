@@ -13,3 +13,6 @@ versioning: [SemVer](https://semver.org/).
 - ADR 0002: application ID and package name.
 - Build tooling: Gradle 9.8 (wrapper with checksum), AGP 9.4 (built-in Kotlin), Kotlin 2.4, compile/target SDK 37,
   Spotless + ktlint, detekt; CI runs `scripts/verify.sh` on JDK 21.
+
+### Changed
+- Builds and tests require JDK 21 (was JDK 17); bytecode still targets Java 17.

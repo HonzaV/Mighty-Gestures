@@ -45,7 +45,7 @@ Build v1 only, but never paint v2/v3 into a corner: see the trigger → action m
 | Language | Kotlin only (no Java sources). Coroutines + Flow for async. |
 | UI | Jetpack Compose + Material 3. No XML layouts or Fragments. Single-activity. |
 | SDK levels | `minSdk 35` (Android 15). `compileSdk`/`targetSdk` = latest **stable** major API (37 at time of writing — re-check `sdkmanager --list` / `android sdk list`). |
-| Build | Gradle Kotlin DSL, version catalog `gradle/libs.versions.toml`, JDK 17 toolchain, no dynamic versions (`+`, `latest.release`). |
+| Build | Gradle Kotlin DSL, version catalog `gradle/libs.versions.toml`, JDK 21 to build and test (bytecode target Java 17), no dynamic versions (`+`, `latest.release`). |
 | Formatting / static analysis | Spotless + ktlint (`.editorconfig`), detekt, Android Lint (warnings as errors for new code). |
 | Testing | JUnit 4, kotlinx-coroutines-test, Turbine, Robolectric, Compose UI test. Details: `docs/engineering/testing.md`. |
 
@@ -84,7 +84,7 @@ type for always-on sensing, gesture-detection approach. Open/accepted ADRs live 
 ## 6. Commands
 
 Environment: Android SDK at `$ANDROID_HOME` (default `~/Android/Sdk`, installed by `scripts/setup-android-sdk.sh`),
-JDK 17+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
+JDK 21+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
 
 | Purpose | Command |
 |---|---|

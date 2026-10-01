@@ -9,7 +9,7 @@ Android google free app for automating motion gestures. More incoming.
 
 ## Building
 
-Requires JDK 21+ (unit tests run Robolectric's Java 21 SDK 37 runtime) and the Android SDK (`scripts/setup-android-sdk.sh`).
+Requires JDK 21+ and the Android SDK (`scripts/setup-android-sdk.sh`).
 
 ```sh
 scripts/verify.sh                            # full verification: Google-free check, Spotless, detekt, lint, unit tests
