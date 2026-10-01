@@ -6,8 +6,8 @@
 #   scripts/verify.sh --fast    Google-free check + spotlessCheck testDebugUnitTest (inner loop)
 #   scripts/verify.sh --device  full + connectedDebugAndroidTest (needs an attached emulator/device)
 #
-# A successful full/device run records .claude/state/last-verify, which the Claude Code Stop hook uses to
-# know that Kotlin changes were verified.
+# A successful full/device run stores a snapshot of all Kotlin sources in .claude/state/last-verify; the Claude
+# Code Stop hook compares against it to know whether the current Kotlin changes were verified.
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -23,7 +23,8 @@ esac
 STATE_DIR=.claude/state
 mkdir -p "$STATE_DIR"
 STARTED="$STATE_DIR/verify-started.$$"
-touch "$STARTED" # stamp the start time: files edited during the run count as unverified
+# Snapshot Kotlin sources before running: files edited, added or deleted during the run count as unverified.
+scripts/kotlin-snapshot.sh > "$STARTED"
 trap 'rm -f "$STARTED"' EXIT
 
 echo "==> Google-free dependency check"

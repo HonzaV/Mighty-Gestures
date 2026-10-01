@@ -63,9 +63,9 @@ measurement for battery claims.
 
 ## 6. UI checks
 ```bash
-adb shell cmd uimode night yes|no
-adb shell settings put system font_scale 1.5   # reset with 1.0 afterwards
-adb shell wm size 1080x2400 / wm size reset    # quick large/small screen sanity check
+adb shell cmd uimode night yes                 # dark mode; reset: adb shell cmd uimode night no
+adb shell settings put system font_scale 1.5   # large font; reset: adb shell settings put system font_scale 1.0
+adb shell wm size 1080x2400                    # other screen size; reset: adb shell wm size reset
 ```
 
 ## 7. Clean up

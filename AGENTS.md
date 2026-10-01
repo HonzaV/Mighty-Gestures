@@ -99,9 +99,8 @@ JDK 17+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
 | Start emulator | `$ANDROID_HOME/emulator/emulator -avd mg_api35 -no-snapshot-save &` |
 | Inject motion on emulator | `adb emu sensor set acceleration <x>:<y>:<z>` (also `gyroscope`, `magnetic-field`) |
 
-The project scaffold **must** provide the Gradle tasks above under these exact names, and an application module
-`:app` with a `releaseRuntimeClasspath` configuration (or set `MG_APP_MODULE`); `scripts/verify.sh` and the
-agent hooks depend on them. Until the Gradle project exists, `scripts/verify.sh` exits 0 with a notice.
+The project scaffold **must** provide the Gradle tasks above under these exact names (application module `:app`);
+`scripts/verify.sh` and the agent hooks depend on them. Until the Gradle project exists, `scripts/verify.sh` exits 0 with a notice.
 
 ## 7. Workflow
 

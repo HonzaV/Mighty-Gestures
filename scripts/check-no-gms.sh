@@ -6,8 +6,8 @@
 # Usage:
 #   scripts/check-no-gms.sh                 # scan the repository (tracked + untracked, non-ignored files)
 #   scripts/check-no-gms.sh --stdin <path>  # scan text from stdin as if it were the content of <path>
-#   scripts/check-no-gms.sh --classpath     # scan the resolved release runtime classpath (transitive deps)
-#                                           # of module ${MG_APP_MODULE:-app}; needs the Gradle project
+#   scripts/check-no-gms.sh --classpath     # scan resolved (transitive) dependencies of every configuration
+#                                           # of every Gradle module; needs the Gradle project
 #
 # Allowed on purpose (FOSS under a com.google namespace): com.google.android.material, com.google.devtools.ksp,
 # com.google.dagger, com.google.truth, com.google.protobuf, com.google.code.gson, com.google.guava.
@@ -47,18 +47,28 @@ root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$root"
 
 if [[ "${1:-}" == "--classpath" ]]; then
-  module="${MG_APP_MODULE:-app}"
   [[ -x ./gradlew ]] || { echo "check-no-gms --classpath: no Gradle project yet, skipped"; exit 0; }
-  deps="$(./gradlew --quiet --console=plain ":$module:dependencies" --configuration releaseRuntimeClasspath)"
-  hits="$(grep -E "$FORBIDDEN" <<<"$deps" | sed 's/^[ |+\\-]*//' | sort -u || true)"
+  # Every module, every configuration (all variants/flavors, runtime, compile and test classpaths).
+  mapfile -t modules < <(./gradlew --quiet --console=plain projects | sed -nE "s/.*Project '(:[^']+)'.*/\1/p")
+  ((${#modules[@]})) || modules=("")   # single-project build: the root project only
+  hits=""
+  for m in "${modules[@]}"; do
+    out="$(./gradlew --quiet --console=plain "$m:dependencies")"
+    # Track the current configuration header ("debugRuntimeClasspath - ...") and report "<module> <config>: <dep>".
+    h="$(FORBIDDEN_RE="$FORBIDDEN" awk -v mod="${m:-:}" 'BEGIN { re = ENVIRON["FORBIDDEN_RE"] }
+      /^[A-Za-z][A-Za-z0-9_]*( - .*)?$/ { cfg=$1; next }
+      $0 ~ re { dep=$0; sub(/^[ |+\\-]*/, "", dep); print mod " " cfg ": " dep }' <<<"$out" | sort -u)"
+    [[ -n "$h" ]] && hits+="$h"$'\n'
+  done
   if [[ -n "$hits" ]]; then
-    printf 'Google-free violation in resolved dependencies of :%s (releaseRuntimeClasspath):\n%s\n' "$module" "$hits"
-    echo "Find the culprit with: ./gradlew :$module:dependencyInsight --configuration releaseRuntimeClasspath --dependency <group>"
+    printf 'Google-free violation in resolved dependencies:\n%s' "$hits"
+    echo "Find the culprit with: ./gradlew <module>:dependencyInsight --configuration <config> --dependency <group>"
     exit 1
   fi
-  echo "check-no-gms --classpath: OK (:$module releaseRuntimeClasspath)"
+  echo "check-no-gms --classpath: OK (${#modules[@]} module(s), all configurations)"
   exit 0
 fi
+
 hits=""
 while IFS= read -r -d '' f; do
   [[ -f "$f" ]] || continue

@@ -27,7 +27,8 @@ A new dependency requires, in the spec or PR description:
 1. Why the platform / AndroidX can't do it in reasonable code.
 2. License (must be AGPL-3.0-compatible: Apache-2.0, MIT, BSD, LGPL, MPL-2.0, GPL-3.0…).
 3. Transitive dependencies checked for GMS/Firebase/trackers: `scripts/check-no-gms.sh --classpath` (part of
-   `scripts/verify.sh`); inspect details with `./gradlew :app:dependencies --configuration releaseRuntimeClasspath`.
+   `scripts/verify.sh`; scans every configuration of every module); inspect details with
+   `./gradlew :app:dependencyInsight --configuration <config> --dependency <group>`.
 4. APK size impact for the release build.
 
 ## Metadata & releases

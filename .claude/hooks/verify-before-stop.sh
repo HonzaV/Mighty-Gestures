@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Stop hook: if Kotlin/Gradle-Kotlin files changed since the last successful `scripts/verify.sh`, ask Claude to
-# run it before finishing. Blocks at most once per stop attempt (honors stop_hook_active) so it can't loop.
+# Stop hook: if Kotlin/Gradle-Kotlin files were edited, added, deleted or renamed since the last successful
+# `scripts/verify.sh` (content snapshot in .claude/state/last-verify), ask Claude to run it before finishing.
+# Blocks at most once per stop attempt (honors stop_hook_active) so it can't loop.
 # No-op until the Gradle project exists.
 set -uo pipefail
 
@@ -11,9 +12,9 @@ input="$(cat)"
 cd "$ROOT" || exit 0
 
 MARKER=.claude/state/last-verify
-if [[ -f "$MARKER" ]]; then
-  changed="$(find . \( -path ./.git -o -path ./.gradle -o -name build -o -path ./.claude \) -prune -o \
-    -type f \( -name '*.kt' -o -name '*.kts' \) -newer "$MARKER" -print 2>/dev/null | sed 's|^\./||' | head -20)"
+if [[ -f "$MARKER" ]] && grep -qE '^[0-9a-f]{64}  ' "$MARKER" 2>/dev/null; then
+  # Paths whose content differs, plus added and deleted/renamed files, relative to the verified snapshot.
+  changed="$(diff "$MARKER" <(scripts/kotlin-snapshot.sh) | sed -nE 's/^[<>] [0-9a-f]{64}  //p' | sort -u | head -20)"
 else
   base="$(git merge-base HEAD main 2>/dev/null || echo HEAD)"
   changed="$( { git diff --name-only "$base" 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } \

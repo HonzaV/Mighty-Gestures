@@ -15,10 +15,15 @@ conversation, and relay results faithfully. Do not do the subagents' work yourse
 Keep a todo list of the stages so progress is visible.
 
 ## Stage 0 — Preflight
-- Read `AGENTS.md`. Run `git status` and `git branch --show-current`.
-- If the working tree has unrelated uncommitted changes, stop and ask how to handle them.
-- If the request starts with `continue <spec path>`, read that spec, confirm its status is **Approved**
-  (otherwise run the approval gate in Stage 1b for it), and jump to Stage 2.
+- Read `AGENTS.md`. Run `git status`, `git branch --show-current` and `git fetch origin main`.
+- If the working tree has uncommitted changes, stop and ask how to handle them.
+- **New request:** must start on `main`, up to date with `origin/main` (`git pull --ff-only`). If the current
+  branch is anything else, stop and ask whether to switch to `main` — never start a new feature on top of an
+  unrelated branch.
+- **`continue <spec path>`:** read that spec and resolve its task branch (`feat|fix/<NNNN-slug>`, NNNN-slug from
+  the spec filename). If the branch exists locally or on `origin`, switch to it; if you are on a different
+  non-`main` branch, stop and ask. Confirm the spec status is **Approved** (otherwise run the approval gate in
+  Stage 1b for it). Then jump to Stage 2.
 
 ## Stage 1 — Spec (architect)
 Delegate to **architect**: "Write a spec for: <request>. Create ADRs for any significant decision. Follow
@@ -33,8 +38,13 @@ approval itself (Approve / Approve with changes / Reject).
 - On approval: set the spec status to **Approved** (and accepted ADRs to **Accepted**).
 
 ## Stage 2 — Branch
-If on `main`, create `feat/<NNNN-slug>` (or `fix/…` for bug fixes) from an up-to-date `main`.
-Never work on `main` directly.
+- New request: you are on an up-to-date `main` (Stage 0). Create `feat/<NNNN-slug>` (or `fix/…` for bug
+  fixes), where NNNN-slug matches the spec filename. The approved spec and ADRs are committed as the first
+  commit on this branch (`docs(spec): …`).
+- `continue`: you must be on the spec's task branch (Stage 0); create it from up-to-date `main` only if it
+  doesn't exist yet.
+- Before every later stage, re-check `git branch --show-current` equals the task branch; if not, stop and ask.
+  Never work on `main` directly.
 
 ## Stage 3 — Implementation
 Follow the architect's implementation order:

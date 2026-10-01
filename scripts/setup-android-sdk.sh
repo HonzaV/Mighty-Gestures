@@ -35,11 +35,32 @@ AVDMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
 # 1. Command-line tools ------------------------------------------------------
 if [[ ! -x "$SDKMANAGER" ]]; then
   log "Resolving latest cmdline-tools build..."
-  ZIP="$(curl -fsSL "$REPO_XML" | grep -o 'commandlinetools-linux-[0-9]*_latest.zip' | sort -t- -k3 -n | tail -1)"
-  [[ -n "$ZIP" ]] || die "could not resolve cmdline-tools download"
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+  curl -fsSL -o "$TMP/repo.xml" "$REPO_XML"
+  ZIP="$(grep -o 'commandlinetools-linux-[0-9]*_latest.zip' "$TMP/repo.xml" | sort -t- -k3 -n | tail -1)"
+  [[ -n "$ZIP" ]] || die "could not resolve cmdline-tools download"
+
+  # Expected size + checksum from the <complete> block whose <url> is $ZIP. Google currently publishes sha1
+  # only; prefer sha256 if it ever appears. CMDLINE_TOOLS_SHA256 pins a known-good hash and takes precedence.
+  read -r EXP_SIZE EXP_TYPE EXP_SUM < <(awk -v zip="$ZIP" '
+    /<complete>/ { size=""; type=""; sum="" }
+    match($0, /<size>[0-9]+<\/size>/) { size=substr($0, RSTART+6, RLENGTH-13) }
+    match($0, /<checksum type="[a-z0-9]+">[0-9a-f]+<\/checksum>/) {
+      s=substr($0, RSTART, RLENGTH); t=s; sub(/^<checksum type="/, "", t); sub(/".*/, "", t)
+      v=s; sub(/^[^>]*>/, "", v); sub(/<.*/, "", v)
+      if (type != "sha256") { type=t; sum=v }
+    }
+    index($0, "<url>" zip "</url>") { print size, type, sum; exit }' "$TMP/repo.xml")
+  if [[ -n "${CMDLINE_TOOLS_SHA256:-}" ]]; then EXP_TYPE=sha256; EXP_SUM="$CMDLINE_TOOLS_SHA256"; fi
+  [[ -n "${EXP_SUM:-}" && "${EXP_TYPE:-}" =~ ^sha(1|256)$ ]] || die "no checksum published for $ZIP - refusing to install"
+
   log "Downloading $ZIP..."
   curl -fsSL -o "$TMP/tools.zip" "https://dl.google.com/android/repository/$ZIP"
+  if [[ -n "${EXP_SIZE:-}" && -z "${CMDLINE_TOOLS_SHA256:-}" ]]; then
+    [[ "$(stat -c %s "$TMP/tools.zip")" == "$EXP_SIZE" ]] || die "size mismatch for $ZIP"
+  fi
+  echo "$EXP_SUM  $TMP/tools.zip" | "${EXP_TYPE}sum" -c --status || die "$EXP_TYPE checksum mismatch for $ZIP - aborting"
+  log "Verified $EXP_TYPE checksum of $ZIP."
   unzip -q "$TMP/tools.zip" -d "$TMP"
   mkdir -p "$ANDROID_HOME/cmdline-tools"
   rm -rf "$ANDROID_HOME/cmdline-tools/latest"
