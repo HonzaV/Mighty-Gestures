@@ -3,13 +3,22 @@
 # without sudo. Idempotent: re-running only installs what is missing.
 #
 # Usage:
-#   scripts/setup-android-sdk.sh                 # SDK, platform-tools, build-tools, platforms
-#   scripts/setup-android-sdk.sh --with-emulator # + emulator and an AOSP (no Google APIs) API 35 AVD
+#   scripts/setup-android-sdk.sh                     # SDK, platform-tools, build-tools, platforms
+#   scripts/setup-android-sdk.sh --with-emulator      # + emulator and an AOSP (no Google APIs) API 35 AVD (mg_api35)
+#   scripts/setup-android-sdk.sh --with-emulator --api37
+#                                                     # + a second AOSP API 37 AVD (mg_api37), used for
+#                                                     # target-37 behavior checks (spec 0001 decision 13).
+#                                                     # Separate, large (system image ~0.8-1.5 GB download)
+#                                                     # and opt-in: on a metered link, run without --api37.
+#                                                     # If Google has not yet published an AOSP ("default")
+#                                                     # x86_64 image for API 37, this dies before installing
+#                                                     # anything rather than falling back to a google_apis* image.
 #
 # Environment overrides:
-#   ANDROID_HOME   install location (default: ~/Android/Sdk)
-#   MIN_API        minimum platform to install (default: 35)
-#   AVD_NAME       emulator AVD name (default: mg_api35)
+#   ANDROID_HOME     install location (default: ~/Android/Sdk)
+#   MIN_API          minimum platform to install (default: 35)
+#   AVD_NAME         emulator AVD name for MIN_API (default: mg_api35)
+#   API37_AVD_NAME   emulator AVD name for --api37 (default: mg_api37)
 #
 # NOTE: this script accepts the Android SDK licenses non-interactively (`yes | sdkmanager --licenses`).
 # Run `sdkmanager --licenses` yourself first if you want to read them.
@@ -18,13 +27,21 @@ set -euo pipefail
 ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
 MIN_API="${MIN_API:-35}"
 AVD_NAME="${AVD_NAME:-mg_api35}"
+API37_AVD_NAME="${API37_AVD_NAME:-mg_api37}"
 WITH_EMULATOR=0
-case "$#:${1:-}" in
-  0:) ;;
-  1:--with-emulator) WITH_EMULATOR=1 ;;
-  1:-h|1:--help) sed -n '2,15p' "$0"; exit 0 ;;
-  *) echo "usage: $0 [--with-emulator]" >&2; exit 2 ;;
-esac
+WITH_API37=0
+for arg in "$@"; do
+  case "$arg" in
+    --with-emulator) WITH_EMULATOR=1 ;;
+    --api37) WITH_API37=1 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    *) echo "usage: $0 [--with-emulator] [--api37]" >&2; exit 2 ;;
+  esac
+done
+if (( WITH_API37 )) && (( ! WITH_EMULATOR )); then
+  echo "usage: $0 --with-emulator --api37 (--api37 requires --with-emulator)" >&2
+  exit 2
+fi
 
 log() { printf '\033[1;34m[setup-android-sdk]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[setup-android-sdk]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -103,6 +120,18 @@ if (( WITH_EMULATOR )); then
   PKGS+=("emulator" "$SYSIMG")
 fi
 
+if (( WITH_API37 )); then
+  # Resolved at runtime (never hard-coded): Google sometimes ships a new API level with only
+  # google_apis* system images for a while before an AOSP 'default' one follows. Refuse to
+  # substitute a Google-API image - die instead, so this never silently drifts off the
+  # Google-free, no-Play-Services line (AGENTS.md §2, spec 0001 decision 13).
+  API37_SYSIMG="$(grep -oE "^\s*system-images${S}android-37(\.0)?${S}default${S}x86_64\s" <<<"$LIST" \
+    | grep -oE "system-images${S}android-37(\.0)?${S}default${S}x86_64" | head -1 || true)"
+  [[ -n "$API37_SYSIMG" ]] \
+    || die "no AOSP ('default') x86_64 system image for API 37 is published yet (only google_apis* variants were found) - refusing to fall back to a Google-API image. Re-run once Google ships one, or use a real API 37 device for target-37 checks (device-verify skill)."
+  PKGS+=("$API37_SYSIMG") # --api37 requires --with-emulator above, which already queues the "emulator" package
+fi
+
 log "Installing: ${PKGS[*]}"
 "$SDKMANAGER" --install "${PKGS[@]}" >/dev/null
 yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
@@ -114,6 +143,15 @@ if (( WITH_EMULATOR )); then
     echo no | "$AVDMANAGER" create avd -n "$AVD_NAME" -k "${SYSIMG//\//;}" -d pixel_7 >/dev/null
   else
     log "AVD $AVD_NAME already exists."
+  fi
+fi
+
+if (( WITH_API37 )); then
+  if ! "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$API37_AVD_NAME"; then
+    log "Creating AVD $API37_AVD_NAME..."
+    echo no | "$AVDMANAGER" create avd -n "$API37_AVD_NAME" -k "${API37_SYSIMG//\//;}" -d pixel_7 >/dev/null
+  else
+    log "AVD $API37_AVD_NAME already exists."
   fi
 fi
 
@@ -129,4 +167,5 @@ Gradle also picks the SDK up from local.properties (sdk.dir=$ANDROID_HOME), whic
 Resolved versions: compileSdk candidate = $LATEST_API, build-tools = $LATEST_BT, minSdk = $MIN_API
 EOF
 (( WITH_EMULATOR )) && echo "Start the emulator: emulator -avd $AVD_NAME -no-snapshot-save &"
+(( WITH_API37 )) && echo "Start the API 37 emulator: emulator -avd $API37_AVD_NAME -no-snapshot-save &"
 exit 0

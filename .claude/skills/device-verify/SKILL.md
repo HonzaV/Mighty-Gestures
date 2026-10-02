@@ -10,15 +10,30 @@ Tools live in `$ANDROID_HOME` (default `~/Android/Sdk`). If `adb` is not on `PAT
 session scratchpad, never in the repo.
 
 ## 1. Get a device
+
+Two AOSP (no Google APIs) AVDs may be available: `mg_api35` (minSdk baseline) and `mg_api37` (targetSdk
+behavior, e.g. ADR 0007 F9 task-hijacking rules and AC-A2). Use `mg_api35` for routine checks; switch to
+`mg_api37` specifically when a behavior depends on target/compile SDK 37, or when a spec names API 37
+(e.g. spec 0001 decision 13). Neither AVD substitutes for the maintainer's real-phone smoke check that
+AC-H2/AC-A2 also require — report emulator results as emulator-only and ask for the real-device check.
+
 ```bash
 adb devices                                   # already attached?
-$ANDROID_HOME/emulator/emulator -list-avds    # expect mg_api35 (AOSP, no Google APIs)
+$ANDROID_HOME/emulator/emulator -list-avds    # expect mg_api35, and mg_api37 if set up (both AOSP, no Google APIs)
 $ANDROID_HOME/emulator/emulator -avd mg_api35 -no-snapshot-save -no-boot-anim &   # add -no-window for headless
+# or: $ANDROID_HOME/emulator/emulator -avd mg_api37 -no-snapshot-save -no-boot-anim &
 adb wait-for-device
 until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1" ]; do sleep 2; done
 ```
-If the AVD is missing, run `scripts/setup-android-sdk.sh --with-emulator`. Start the emulator in the
-background and don't leave it running unless the caller wants it to be.
+If the AVD is missing, run `scripts/setup-android-sdk.sh --with-emulator` (`mg_api35`), add `--api37` for
+`mg_api37` too. The API 37 system image is large (~0.8-1.5 GB) and opt-in; don't add `--api37` on a metered
+connection without asking first. If no AOSP ("default") API 37 system image is published yet, that command
+dies with an explanatory message — don't substitute a `google_apis*` image to work around it; fall back to a
+real API 37 device or ask the maintainer. Start the emulator in the background and don't leave it running
+unless the caller wants it to be.
+
+If both emulators are attached at once, target commands with `adb -s <serial>` (`adb devices` lists serials,
+e.g. `emulator-5554`, `emulator-5556`); the examples below assume a single attached device/emulator.
 
 ## 2. Install and launch
 ```bash
