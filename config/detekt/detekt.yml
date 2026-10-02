@@ -4,6 +4,11 @@ naming:
     # Composable functions are PascalCase by convention (same exemption as ktlint in .editorconfig).
     ignoreAnnotated: ['Composable']
 style:
+  ForbiddenImport:
+    active: true
+    # ADR 0003: domain must stay pure Kotlin so detectors are unit-testable against traces (AGENTS.md §4, AC-M1).
+    forbiddenPatterns: '^(android|androidx)\..*'
+    includes: ['**/domain/**']
   MagicNumber:
     # Named top-level/companion constants are the fix MagicNumber asks for (e.g. Compose color tokens in ui/theme).
     ignorePropertyDeclaration: true
