@@ -169,18 +169,34 @@ fi
 
 if (( WITH_API37 )); then
   if "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$API37_AVD_NAME"; then
-    # An AVD can outlive the system image it was created from (e.g. created with google_apis before
-    # an AOSP image existed). Re-check its actual tag rather than trusting the name: accept only
-    # 'default' or 'google_apis' (the two tags this script itself ever creates); die on anything
-    # else (e.g. google_apis_playstore) so a manually-created, non-Google-free AVD never gets
-    # silently reused.
+    # An AVD can outlive the system image it was created from, or be created manually from an
+    # unrelated image (e.g. API 35, or arm64-v8a). Re-check config.ini rather than trusting the AVD
+    # name: tag.id must be 'default' or 'google_apis' (the two tags this script itself ever
+    # creates), and image.sysdir.1 - the actual installed image path - must independently confirm
+    # API 37 (or 37.0, major only, matching the resolution above), the x86_64 ABI, and a tag segment
+    # that agrees with tag.id. Die on any mismatch or missing key, naming the offending value, so a
+    # wrong or corrupt AVD is never silently reused.
     AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
     API37_CONFIG="$AVD_HOME/$API37_AVD_NAME.avd/config.ini"
     API37_TAG="$(grep -m1 -oE '^tag\.id=.*' "$API37_CONFIG" 2>/dev/null | cut -d= -f2- || true)"
+    [[ -n "$API37_TAG" ]] \
+      || die "AVD $API37_AVD_NAME already exists but $API37_CONFIG has no 'tag.id' key - cannot verify its system image. Remove it or set API37_AVD_NAME to a new name and re-run."
     case "$API37_TAG" in
-      default|google_apis) log "AVD $API37_AVD_NAME already exists (tag.id=$API37_TAG)." ;;
+      default|google_apis) ;;
       *) die "AVD $API37_AVD_NAME already exists with an unexpected system-image tag '$API37_TAG' in $API37_CONFIG (expected 'default' or 'google_apis') - remove it or set API37_AVD_NAME to a new name and re-run." ;;
     esac
+    API37_SYSDIR="$(grep -m1 -oE '^image\.sysdir\.1=.*' "$API37_CONFIG" 2>/dev/null | cut -d= -f2- || true)"
+    [[ -n "$API37_SYSDIR" ]] \
+      || die "AVD $API37_AVD_NAME already exists but $API37_CONFIG has no 'image.sysdir.1' key - cannot verify its API level/ABI. Remove it or set API37_AVD_NAME to a new name and re-run."
+    # image.sysdir.1 looks like "system-images/android-37.0/default/x86_64/".
+    IFS='/' read -r _ SYSDIR_API SYSDIR_TAG SYSDIR_ABI <<<"${API37_SYSDIR%/}"
+    [[ "$SYSDIR_API" =~ ^android-37(\.0)?$ ]] \
+      || die "AVD $API37_AVD_NAME already exists but its image.sysdir.1 ($API37_SYSDIR) in $API37_CONFIG is for '$SYSDIR_API', not API 37 - remove it or set API37_AVD_NAME to a new name and re-run."
+    [[ "$SYSDIR_ABI" == "x86_64" ]] \
+      || die "AVD $API37_AVD_NAME already exists but its image.sysdir.1 ($API37_SYSDIR) in $API37_CONFIG is for ABI '$SYSDIR_ABI', not x86_64 - remove it or set API37_AVD_NAME to a new name and re-run."
+    [[ "$SYSDIR_TAG" == "$API37_TAG" ]] \
+      || die "AVD $API37_AVD_NAME already exists but its image.sysdir.1 tag ('$SYSDIR_TAG') in $API37_CONFIG does not match tag.id ('$API37_TAG') - remove it or set API37_AVD_NAME to a new name and re-run."
+    log "AVD $API37_AVD_NAME already exists (tag.id=$API37_TAG, image.sysdir.1=$API37_SYSDIR)."
   else
     log "Creating AVD $API37_AVD_NAME..."
     echo no | "$AVDMANAGER" create avd -n "$API37_AVD_NAME" -k "${API37_SYSIMG//\//;}" -d pixel_7 >/dev/null

@@ -16,9 +16,9 @@ behavior, e.g. task/background-launch rules that change per target SDK). `mg_api
 may be built from Google's `google_apis` image instead, as a test-only exception for emulator testing when no
 AOSP API 37 image is published yet — the app itself never depends on Google APIs; check
 `~/.android/avd/mg_api37.avd/config.ini`'s `tag.id` if it matters which. Use `mg_api35` for routine checks;
-switch to `mg_api37` specifically when a behavior depends on target/compile SDK 37. Neither AVD substitutes
-for the maintainer's real-phone smoke check that some behavior still requires — report emulator results as
-emulator-only and ask for the real-device check.
+switch to `mg_api37` specifically when a behavior depends on targetSdk 37 / Android 17 runtime behavior.
+Neither AVD substitutes for the maintainer's real-phone smoke check that some behavior still requires —
+report emulator results as emulator-only and ask for the real-device check.
 
 ```bash
 adb devices                                   # already attached?

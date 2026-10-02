@@ -75,8 +75,8 @@ The emulator sets static values; for dynamic gestures write a small script that 
 `adb emu sensor set` commands with sleeps, or rely on JVM trace tests. Real-device checks are required before
 release for each new gesture (emulator sensor timing is not realistic).
 
-Use the `mg_api37` AVD instead of `mg_api35` when a test depends on targetSdk/compileSdk 37 behavior (e.g.
-task/background-launch rules that change per target SDK) — set it up with
+Use the `mg_api37` AVD instead of `mg_api35` when a test depends on targetSdk 37 / Android 17 runtime behavior
+(e.g. task/background-launch rules that change per target SDK) — set it up with
 `scripts/setup-android-sdk.sh --with-emulator --api37` (opt-in, separate from `mg_api35`, large download).
 It prefers an AOSP (no Google APIs) image, but accepts Google's `google_apis` image as a test-only exception
 for emulator testing when no AOSP API 37 image is published yet; the app itself never depends on Google APIs.
