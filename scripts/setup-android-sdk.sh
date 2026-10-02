@@ -4,15 +4,21 @@
 #
 # Usage:
 #   scripts/setup-android-sdk.sh                     # SDK, platform-tools, build-tools, platforms
-#   scripts/setup-android-sdk.sh --with-emulator      # + emulator and an AOSP (no Google APIs) API 35 AVD (mg_api35)
+#   scripts/setup-android-sdk.sh --with-emulator      # + emulator and an AOSP (no Google APIs) API 35 AVD
+#                                                     # (mg_api35). System image download: 782,404,023 bytes
+#                                                     # (verified, x86_64 'default' image).
 #   scripts/setup-android-sdk.sh --with-emulator --api37
-#                                                     # + a second AOSP API 37 AVD (mg_api37), used for
-#                                                     # target-37 behavior checks (spec 0001 decision 13).
-#                                                     # Separate, large (system image ~0.8-1.5 GB download)
-#                                                     # and opt-in: on a metered link, run without --api37.
-#                                                     # If Google has not yet published an AOSP ("default")
-#                                                     # x86_64 image for API 37, this dies before installing
-#                                                     # anything rather than falling back to a google_apis* image.
+#                                                     # + a second API 37 AVD (mg_api37) for targetSdk-37
+#                                                     # behavior checks. Prefers an AOSP ("default") x86_64
+#                                                     # image; if none is published yet, falls back to the
+#                                                     # google_apis x86_64 image as a test-only exception for
+#                                                     # *emulator testing only* - the app itself stays
+#                                                     # Google-free. Never google_apis_playstore, *_ps16k, or
+#                                                     # the wear/desktop/automotive images. Separate, large
+#                                                     # (system image download > 1 GB, unverified) and opt-in:
+#                                                     # on a metered link, run without --api37. If neither an
+#                                                     # AOSP nor a google_apis image exists for API 37, this
+#                                                     # dies before installing any SDK packages.
 #
 # Environment overrides:
 #   ANDROID_HOME     install location (default: ~/Android/Sdk)
@@ -34,7 +40,7 @@ for arg in "$@"; do
   case "$arg" in
     --with-emulator) WITH_EMULATOR=1 ;;
     --api37) WITH_API37=1 ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "usage: $0 [--with-emulator] [--api37]" >&2; exit 2 ;;
   esac
 done
@@ -121,14 +127,29 @@ if (( WITH_EMULATOR )); then
 fi
 
 if (( WITH_API37 )); then
-  # Resolved at runtime (never hard-coded): Google sometimes ships a new API level with only
-  # google_apis* system images for a while before an AOSP 'default' one follows. Refuse to
-  # substitute a Google-API image - die instead, so this never silently drifts off the
-  # Google-free, no-Play-Services line (AGENTS.md §2, spec 0001 decision 13).
-  API37_SYSIMG="$(grep -oE "^\s*system-images${S}android-37(\.0)?${S}default${S}x86_64\s" <<<"$LIST" \
+  # Resolved at runtime (never hard-coded): a freshly released API level sometimes has only a
+  # google_apis* system image for a while before an AOSP 'default' one follows. Prefer the AOSP
+  # image; accept google_apis as a test-only exception for *emulator testing only* (the app itself
+  # never depends on Google APIs - AGENTS.md §2). Never accept google_apis_playstore, any
+  # *_ps16k variant, or the wear/desktop/automotive images: those pull in Play Store / Play
+  # Services, exactly what this project refuses to depend on.
+  # Major release only (".0" or bare), matching the platform resolution above: this intentionally
+  # excludes minor releases (android-37.1, .2) and previews (android-37.2-beta1).
+  API37_DEFAULT="$(grep -oE "^\s*system-images${S}android-37(\.0)?${S}default${S}x86_64\s" <<<"$LIST" \
     | grep -oE "system-images${S}android-37(\.0)?${S}default${S}x86_64" | head -1 || true)"
-  [[ -n "$API37_SYSIMG" ]] \
-    || die "no AOSP ('default') x86_64 system image for API 37 is published yet (only google_apis* variants were found) - refusing to fall back to a Google-API image. Re-run once Google ships one, or use a real API 37 device for target-37 checks (device-verify skill)."
+  API37_GOOGLE="$(grep -oE "^\s*system-images${S}android-37(\.0)?${S}google_apis${S}x86_64\s" <<<"$LIST" \
+    | grep -oE "system-images${S}android-37(\.0)?${S}google_apis${S}x86_64" | head -1 || true)"
+  if [[ -n "$API37_DEFAULT" ]]; then
+    API37_SYSIMG="$API37_DEFAULT"
+    log "API 37: using the AOSP ('default') image - $API37_SYSIMG"
+  elif [[ -n "$API37_GOOGLE" ]]; then
+    API37_SYSIMG="$API37_GOOGLE"
+    log "API 37: no AOSP image published yet; using google_apis for emulator testing only (test-only exception, maintainer decision) - $API37_SYSIMG. The app itself never depends on Google APIs."
+  else
+    API37_TAGS="$(grep -oE "android-37(\.[0-9]+)?(-[a-z0-9]+)?${S}[a-zA-Z0-9_-]+${S}x86_64" <<<"$LIST" \
+      | sort -u | paste -sd',' - | sed 's/,/, /g')"
+    die "no AOSP or google_apis API 37 x86_64 image in 'sdkmanager --list'${API37_TAGS:+ (found: $API37_TAGS)}"
+  fi
   PKGS+=("$API37_SYSIMG") # --api37 requires --with-emulator above, which already queues the "emulator" package
 fi
 
@@ -147,11 +168,22 @@ if (( WITH_EMULATOR )); then
 fi
 
 if (( WITH_API37 )); then
-  if ! "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$API37_AVD_NAME"; then
+  if "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$API37_AVD_NAME"; then
+    # An AVD can outlive the system image it was created from (e.g. created with google_apis before
+    # an AOSP image existed). Re-check its actual tag rather than trusting the name: accept only
+    # 'default' or 'google_apis' (the two tags this script itself ever creates); die on anything
+    # else (e.g. google_apis_playstore) so a manually-created, non-Google-free AVD never gets
+    # silently reused.
+    AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
+    API37_CONFIG="$AVD_HOME/$API37_AVD_NAME.avd/config.ini"
+    API37_TAG="$(grep -m1 -oE '^tag\.id=.*' "$API37_CONFIG" 2>/dev/null | cut -d= -f2- || true)"
+    case "$API37_TAG" in
+      default|google_apis) log "AVD $API37_AVD_NAME already exists (tag.id=$API37_TAG)." ;;
+      *) die "AVD $API37_AVD_NAME already exists with an unexpected system-image tag '$API37_TAG' in $API37_CONFIG (expected 'default' or 'google_apis') - remove it or set API37_AVD_NAME to a new name and re-run." ;;
+    esac
+  else
     log "Creating AVD $API37_AVD_NAME..."
     echo no | "$AVDMANAGER" create avd -n "$API37_AVD_NAME" -k "${API37_SYSIMG//\//;}" -d pixel_7 >/dev/null
-  else
-    log "AVD $API37_AVD_NAME already exists."
   fi
 fi
 
