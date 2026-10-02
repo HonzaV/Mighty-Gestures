@@ -84,7 +84,8 @@ type for always-on sensing, gesture-detection approach. Open/accepted ADRs live 
 ## 6. Commands
 
 Environment: Android SDK at `$ANDROID_HOME` (default `~/Android/Sdk`, installed by `scripts/setup-android-sdk.sh`),
-JDK 21+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
+JDK 21+. Emulator AVD `mg_api35` (AOSP image, no Google APIs); AVD `mg_api37` (AOSP, targetSdk-37 behavior
+checks; opt-in, `--api37`, large download) is set up the same way — see `scripts/setup-android-sdk.sh --help`.
 
 | Purpose | Command |
 |---|---|
@@ -97,6 +98,7 @@ JDK 21+. Emulator AVD `mg_api35` (AOSP image, no Google APIs).
 | Lint / static analysis | `./gradlew lintDebug detekt` |
 | Install debug build | `./gradlew installDebug` |
 | Start emulator | `$ANDROID_HOME/emulator/emulator -avd mg_api35 -no-snapshot-save &` |
+| Start API 37 emulator (targetSdk-37 checks; see device-verify skill) | `$ANDROID_HOME/emulator/emulator -avd mg_api37 -no-snapshot-save &` |
 | Inject motion on emulator | `adb emu sensor set acceleration <x>:<y>:<z>` (also `gyroscope`, `magnetic-field`) |
 
 The project scaffold **must** provide the Gradle tasks above under these exact names (application module `:app`);

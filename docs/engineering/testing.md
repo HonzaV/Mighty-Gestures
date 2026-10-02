@@ -75,6 +75,12 @@ The emulator sets static values; for dynamic gestures write a small script that 
 `adb emu sensor set` commands with sleeps, or rely on JVM trace tests. Real-device checks are required before
 release for each new gesture (emulator sensor timing is not realistic).
 
+Use the AOSP (no Google APIs) `mg_api37` AVD instead of `mg_api35` when a test depends on target/compile
+SDK 37 behavior (e.g. ADR 0007 F9 task-hijacking rules, AC-A2) — set it up with
+`scripts/setup-android-sdk.sh --with-emulator --api37` (opt-in, separate from `mg_api35`, large download).
+See the `device-verify` skill for when to use which emulator and for the real-device fallback that AC-H2/AC-A2
+also require.
+
 ## Naming & structure
 
 - Test class mirrors the class under test: `FlipDetector` → `FlipDetectorTest`.
