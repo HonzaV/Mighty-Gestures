@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- DND / sound-mode actions: a "marker permission" so the app can appear in the Settings policy-access
+         list (verified, Manifest.permission#ACCESS_NOTIFICATION_POLICY). The grant itself is the special
+         access requested in the UI (spec 0001 decisions 8, 9). -->
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+
+    <!-- Open-app action / app picker: package visibility for launchable apps only (AC-C9). Never
+         QUERY_ALL_PACKAGES (verified, https://developer.android.com/training/package-visibility/declaring). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -15,7 +29,23 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Lets Settings deep-link into "configure" the Mighty Gestures Do Not Disturb mode (decision 8).
+                 No extras are trusted; the activity ignores them (see spec 0001, "Actions"). -->
+            <intent-filter>
+                <action android:name="android.app.action.AUTOMATIC_ZEN_RULE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- Open-app action on the lock screen (decision 12): not exported, started only by this app. -->
+        <activity
+            android:name=".platform.action.LaunchOverKeyguardActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.LaunchOverKeyguard" />
     </application>
 
 </manifest>
