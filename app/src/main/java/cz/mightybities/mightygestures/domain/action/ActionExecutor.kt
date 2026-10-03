@@ -38,4 +38,12 @@ sealed interface ActionFailure {
 
     /** e.g. ringer mode cannot change because `AudioManager.isVolumeFixed()`. */
     data object Unsupported : ActionFailure
+
+    /**
+     * Additive to ADR 0004's `ActionFailure` shape (PR #4 fix round): an executor threw an exception the
+     * dispatcher ([cz.mightybities.mightygestures.platform.action.AndroidActionExecutor]) did not expect and
+     * could not map to a more specific reason. Carries **no payload** — an exception message can contain a
+     * package name or other identifying detail, which must never be logged or stored (AGENTS.md §5).
+     */
+    data object Unexpected : ActionFailure
 }
