@@ -56,6 +56,28 @@ fi
 log() { printf '\033[1;34m[setup-android-sdk]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[setup-android-sdk]\033[0m %s\n' "$*" >&2; exit 1; }
 
+# Resolves the AVD directory the same way the Android SDK tools do, so an existing-AVD config.ini
+# lookup doesn't wrongly report a valid AVD as missing just because the caller relocated Android's
+# user data. Order: ANDROID_AVD_HOME, then ANDROID_EMULATOR_HOME/avd, ANDROID_USER_HOME/avd, the
+# legacy ANDROID_SDK_HOME/.android/avd, finally $HOME/.android/avd. *Inferred*: `strings` on the
+# local emulator binary confirms ANDROID_AVD_HOME takes priority and that ANDROID_SDK_HOME/avd and
+# $HOME/.android/avd are both recognized fallback paths, but the exact position of
+# ANDROID_EMULATOR_HOME/ANDROID_USER_HOME in the precedence was not independently verified locally
+# (no network lookup was done to confirm it).
+avd_home() {
+  if [[ -n "${ANDROID_AVD_HOME:-}" ]]; then
+    printf '%s\n' "$ANDROID_AVD_HOME"
+  elif [[ -n "${ANDROID_EMULATOR_HOME:-}" ]]; then
+    printf '%s\n' "$ANDROID_EMULATOR_HOME/avd"
+  elif [[ -n "${ANDROID_USER_HOME:-}" ]]; then
+    printf '%s\n' "$ANDROID_USER_HOME/avd"
+  elif [[ -n "${ANDROID_SDK_HOME:-}" ]]; then
+    printf '%s\n' "$ANDROID_SDK_HOME/.android/avd"
+  else
+    printf '%s\n' "$HOME/.android/avd"
+  fi
+}
+
 for cmd in java curl unzip; do command -v "$cmd" >/dev/null || die "missing required tool: $cmd"; done
 JAVA_MAJOR="$(java -version 2>&1 | awk -F'"' '/version/ {split($2,v,"."); print v[1]}')"
 (( JAVA_MAJOR >= 21 )) || die "JDK 21+ required (found $JAVA_MAJOR). Install Temurin 21."
@@ -187,7 +209,7 @@ if (( WITH_API37 )); then
     # API 37 (or 37.0, major only, matching the resolution above), the x86_64 ABI, and a tag segment
     # that agrees with tag.id. Die on any mismatch or missing key, naming the offending value, so a
     # wrong or corrupt AVD is never silently reused.
-    AVD_HOME="${ANDROID_AVD_HOME:-$HOME/.android/avd}"
+    AVD_HOME="$(avd_home)"
     API37_CONFIG="$AVD_HOME/$API37_AVD_NAME.avd/config.ini"
     API37_TAG="$(grep -m1 -oE '^tag\.id=.*' "$API37_CONFIG" 2>/dev/null | cut -d= -f2- || true)"
     [[ -n "$API37_TAG" ]] \
