@@ -12,7 +12,9 @@ import cz.mightybities.mightygestures.platform.access.SpecialAccessChecker
  * Sound mode action (spec 0001, "Actions"; decision 9). "Ringer mode adjustments that would toggle Do Not
  * Disturb are not allowed unless the app has been granted Notification Policy Access" (verified,
  * `AudioManager#setRingerMode` docs); which transitions touch DND varies by device, so **all** sound-mode
- * gestures require notification-policy access, not just the ones that provably need it.
+ * gestures require notification-policy access, not just the ones that provably need it. The framework can
+ * still refuse with `SecurityException` if access is revoked between our own check and this call (the same
+ * TOCTOU race `ToggleDoNotDisturbActionExecutor` guards against).
  */
 class SetRingerModeActionExecutor(
     private val context: Context,
@@ -31,13 +33,20 @@ class SetRingerModeActionExecutor(
             }
 
             else -> {
-                audioManager.ringerMode =
-                    when (mode) {
-                        RingerMode.NORMAL -> AudioManager.RINGER_MODE_NORMAL
-                        RingerMode.VIBRATE -> AudioManager.RINGER_MODE_VIBRATE
-                        RingerMode.SILENT -> AudioManager.RINGER_MODE_SILENT
-                    }
-                ActionResult.Success
+                setRingerModeOrFail(mode)
             }
+        }
+
+    private fun setRingerModeOrFail(mode: RingerMode): ActionResult =
+        try {
+            audioManager.ringerMode =
+                when (mode) {
+                    RingerMode.NORMAL -> AudioManager.RINGER_MODE_NORMAL
+                    RingerMode.VIBRATE -> AudioManager.RINGER_MODE_VIBRATE
+                    RingerMode.SILENT -> AudioManager.RINGER_MODE_SILENT
+                }
+            ActionResult.Success
+        } catch (expected: SecurityException) {
+            ActionResult.Failed(ActionFailure.MissingAccess(SpecialAccess.NOTIFICATION_POLICY))
         }
 }

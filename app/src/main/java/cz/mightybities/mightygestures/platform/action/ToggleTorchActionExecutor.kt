@@ -14,6 +14,11 @@ import java.util.concurrent.ConcurrentHashMap
  * Flashlight toggle (spec 0001, "Actions"). `CameraManager.setTorchMode` documents no permission requirement,
  * so this needs **no CAMERA permission** (verified, CameraManager#setTorchMode docs). State is tracked via
  * `registerTorchCallback` because the API has no "get current torch mode" query.
+ *
+ * `cameraIdList`/`getCameraCharacteristics` (enumeration) and `setTorchMode` can all throw
+ * `CameraAccessException` (e.g. a camera-service disconnect); `setTorchMode` additionally throws
+ * `IllegalArgumentException` for a cached camera id that has since disappeared. Both are caught: the id is
+ * re-resolved exactly once before giving up (AC-A4, no crash).
  */
 class ToggleTorchActionExecutor(
     context: Context,
@@ -46,17 +51,32 @@ class ToggleTorchActionExecutor(
     }
 
     fun execute(): ActionResult {
-        val cameraId =
-            torchCameraId ?: findTorchCameraId() ?: return ActionResult.Failed(ActionFailure.TorchUnavailable)
-        torchCameraId = cameraId
-        val currentlyOn = torchStates[cameraId] ?: false
-        return try {
+        // One retry: a stale cached camera id (IllegalArgumentException) is dropped and re-resolved exactly
+        // once; a second failure of any kind gives up.
+        var attemptsLeft = 2
+        var result: ActionResult? = null
+        while (result == null && attemptsLeft > 0) {
+            attemptsLeft--
+            result = attemptToggle()
+        }
+        return result ?: ActionResult.Failed(ActionFailure.TorchUnavailable)
+    }
+
+    /** Null means "stale camera id, drop it and let the caller retry once with a fresh lookup". */
+    private fun attemptToggle(): ActionResult? =
+        try {
+            val cameraId =
+                torchCameraId ?: findTorchCameraId() ?: return ActionResult.Failed(ActionFailure.TorchUnavailable)
+            torchCameraId = cameraId
+            val currentlyOn = torchStates[cameraId] ?: false
             cameraManager.setTorchMode(cameraId, !currentlyOn)
             ActionResult.Success
         } catch (expected: CameraAccessException) {
             ActionResult.Failed(ActionFailure.TorchUnavailable)
+        } catch (expected: IllegalArgumentException) {
+            torchCameraId = null
+            null
         }
-    }
 
     /** Prefers a back-facing camera, falling back to any camera that reports a flash unit. */
     private fun findTorchCameraId(): String? {
