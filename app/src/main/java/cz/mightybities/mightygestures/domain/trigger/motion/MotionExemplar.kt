@@ -30,6 +30,16 @@ class MotionExemplar
         val gravityAtStartX: Float,
         val gravityAtStartY: Float,
         val gravityAtStartZ: Float,
+        /** Index of the first frame at or after the confirmed onset (see [SegmentFrames.onsetIndex]):
+         * persisted here too, not just on the live [SegmentFrames] it was copied from, so that
+         * [ExemplarReplay]'s re-derived [SegmentFrames] preserves the same pre-roll/active split
+         * (ADR 0006 "templates can be re-derived from raw samples"). Without it, a re-derivation
+         * defaults to 0 and silently breaks the [TemplateValidator] invariant that the pre-roll is
+         * excluded from duration/peak/energy — though in practice the validator never runs on a
+         * replayed exemplar (record-only, ADR 0008), this still keeps the two representations of
+         * "the same segment" consistent for any future consumer that does read it.
+         */
+        val onsetIndex: Int,
     ) {
         val length: Int get() = tNanos.size
 
@@ -39,12 +49,16 @@ class MotionExemplar
                 "all sample arrays must have the same length as tNanos (${tNanos.size})"
             }
             require(tNanos.isEmpty() || tNanos[0] == 0L) { "tNanos must be rebased so the first sample is 0" }
+            require(onsetIndex in 0 until maxOf(tNanos.size, 1)) {
+                "onsetIndex ($onsetIndex) must be a valid index into a ${tNanos.size}-frame exemplar"
+            }
         }
 
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is MotionExemplar) return false
             return hasGyro == other.hasGyro &&
+                onsetIndex == other.onsetIndex &&
                 gravityAtStartX == other.gravityAtStartX &&
                 gravityAtStartY == other.gravityAtStartY &&
                 gravityAtStartZ == other.gravityAtStartZ &&
@@ -66,6 +80,7 @@ class MotionExemplar
             result = 31 * result + gyroY.contentHashCode()
             result = 31 * result + gyroZ.contentHashCode()
             result = 31 * result + hasGyro.hashCode()
+            result = 31 * result + onsetIndex
             result = 31 * result + gravityAtStartX.hashCode()
             result = 31 * result + gravityAtStartY.hashCode()
             result = 31 * result + gravityAtStartZ.hashCode()
@@ -93,6 +108,7 @@ class MotionExemplar
                     gravityAtStartX = gravityAtStartX,
                     gravityAtStartY = gravityAtStartY,
                     gravityAtStartZ = gravityAtStartZ,
+                    onsetIndex = segment.onsetIndex,
                 )
             }
         }

@@ -33,7 +33,7 @@ class CaptureSessionTest {
     private fun wrapped(gesture: MotionSegmentSpec) = concat(listOf(stillness(0.6f), gesture, stillness(1.5f)))
 
     @Test
-    fun `recording a clean gesture stores an exemplar that starts at the pre-roll (AC-C2)`() {
+    fun `recording a clean gesture stores an exemplar whose onset sits about 100ms after the pre-roll (AC-C2)`() {
         val session = newSession()
         session.startRecording(0L)
         SensorModel()
@@ -46,10 +46,42 @@ class CaptureSessionTest {
         val result = session.result
         assertTrue(result is CaptureResult.Recorded)
         val exemplar = (result as CaptureResult.Recorded).exemplar
-        // The exemplar is rebased so its first timestamp is 0; AC-C2 asks that it also contains
-        // the pre-roll, i.e. more than just the active portion starting at onset.
-        assertTrue(exemplar.length > 1)
         assertEquals(0L, exemplar.tNanos[0])
+        // AC-C2's actual claim: the stored exemplar contains the 100ms pre-roll before onset, and
+        // ends at the last active (non-quiet) frame, not an arbitrary later one -- not merely
+        // "length > 1" or "starts at 0", which a one-frame exemplar would also satisfy.
+        val onsetOffsetNanos = exemplar.tNanos[exemplar.onsetIndex] - exemplar.tNanos[0]
+        assertEquals(
+            "onset should sit ~100ms (preRollNanos) after the exemplar's first frame, give or take one frame",
+            config.preRollNanos.toDouble(),
+            onsetOffsetNanos.toDouble(),
+            FRAME_TOLERANCE_NANOS.toDouble(),
+        )
+        val lastFrameLinMagSq =
+            exemplar.accZ.last().let { accZ ->
+                // lin = acc - gravity; at rest gravity ~= (0,0,9.81), so a quiet last frame's acc
+                // should be close to that, not a moment of active motion.
+                val dz = accZ - GRAVITY_Z
+                dz * dz
+            }
+        assertTrue(
+            "the last frame should be quiet (close to rest), not mid-motion: |acc.z - g| ~ $lastFrameLinMagSq",
+            lastFrameLinMagSq < QUIET_ACC_Z_DEVIATION_SQ,
+        )
+    }
+
+    @Test
+    fun `resultListener is invoked with the same outcome as result, on the calling thread`() {
+        val session = newSession()
+        val observed = mutableListOf<CaptureResult>()
+        session.resultListener = { observed += it }
+        session.startRecording(0L)
+        SensorModel()
+            .generate(stillness(2f), Quaternion.IDENTITY, hasGyro = true, noise = NoiseSource(99))
+            .feedTo(session)
+        session.checkTimeout(nowNanos = 10_000_000_000L)
+        assertEquals(listOf(CaptureResult.NoMovement), observed)
+        assertEquals(session.result, observed.single())
     }
 
     @Test
@@ -201,5 +233,11 @@ class CaptureSessionTest {
                 hasGyro = hasGyro,
                 noise = NoiseSource(seed),
             ).feedTo(session)
+    }
+
+    private companion object {
+        const val FRAME_TOLERANCE_NANOS = 20_000_000L // one frame at 50Hz
+        const val GRAVITY_Z = 9.81f
+        const val QUIET_ACC_Z_DEVIATION_SQ = 4f // |deviation| < 2 m/s^2, comfortably under A_off=1.5 squared-ish
     }
 }

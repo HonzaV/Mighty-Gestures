@@ -47,11 +47,22 @@ enum class CaptureStage { IDLE, RECORDING, CONFIRMING }
  * A 10 s timeout from [startRecording]/[startConfirming] without a confirmed onset reports
  * [CaptureResult.NoMovement] (AC-C3). The pipeline keeps delivering samples through [onSample]
  * regardless of whether anything interesting is happening, so this class cannot tell "10 s elapsed"
- * from its own sample stream (sensor time) alone; the capture screen must also call [checkTimeout]
- * on its own wall-clock tick. See [checkTimeout] for why it ignores an attempt already in progress.
+ * from its own sample stream (sensor time) alone; something must also call [checkTimeout] on a
+ * wall-clock tick. See [checkTimeout] for why it ignores an attempt already in progress.
  *
- * Not thread-safe: driven from one thread only, like the rest of the motion pipeline (ADR 0008
- * `mg-sensors` `HandlerThread`).
+ * **Every public member — [startRecording], [startConfirming], [onSample], [checkTimeout], and
+ * reading [stage]/[result] — must be called from the same single thread** (ADR 0008's `mg-sensors`
+ * `HandlerThread`, the same thread [MotionPipeline] and the rest of this package already require).
+ * This class is not thread-safe and does no synchronization of its own. In particular,
+ * **[checkTimeout] is not a UI-thread callback**: the "capture screen's own timer/tick" mentioned
+ * below must itself run on the sensor thread (e.g. a `Handler.postDelayed` on that same
+ * `HandlerThread`, or a call to [checkTimeout] threaded through [onSample] on every sample), not a
+ * `Compose`/UI-thread `Timer` calling in from outside. Consumers that need the result on another
+ * thread (the real use case, since results drive UI) must not poll [result] from that other thread;
+ * instead, subscribe via [resultListener], which this class invokes on the same sensor thread as
+ * everything else, and have the *adapter* post that notification across threads. [result] remains
+ * a plain, same-thread-only getter for convenience (tests read it synchronously right after
+ * feeding samples, which satisfies "same thread" trivially).
  */
 class CaptureSession(
     private val config: MotionConfig,
@@ -64,9 +75,16 @@ class CaptureSession(
     var stage: CaptureStage = CaptureStage.IDLE
         private set
 
-    /** The latest attempt's outcome, or `null` while [stage] is in progress and no segment has landed yet. */
+    /** The latest attempt's outcome, or `null` while [stage] is in progress and no segment has
+     * landed yet. Same-thread-only (see class KDoc): do not poll this from another thread. */
     var result: CaptureResult? = null
         private set
+
+    /** Invoked, on the same sensor thread as every other call into this class, exactly once per
+     * attempt, the moment [result] transitions from `null` to non-null. The intended consumer is
+     * on a different thread (typically the UI): that consumer must subscribe here and have its own
+     * adapter post the notification across threads, rather than polling [result] from elsewhere. */
+    var resultListener: ((CaptureResult) -> Unit)? = null
 
     private val pipeline = MotionPipeline(config, hasGyro, ::handleSegment)
     private var pendingRecordExemplar: MotionExemplar? = null
@@ -129,17 +147,24 @@ class CaptureSession(
         if (pipeline.state == Segmenter.State.ACTIVE) return
         if (nowNanos - startClockNanos >= config.captureNoMovementTimeoutNanos) {
             deadlineArmed = false
-            result = CaptureResult.NoMovement
+            finish(CaptureResult.NoMovement)
         }
     }
 
     private fun isRunning() = result == null && stage != CaptureStage.IDLE
 
+    /** Sets [result] and notifies [resultListener], both on the caller's thread (see class KDoc):
+     * the single place every attempt's outcome is published, so the two never go out of sync. */
+    private fun finish(outcome: CaptureResult) {
+        result = outcome
+        resultListener?.invoke(outcome)
+    }
+
     private fun handleDiscard(reason: Segmenter.DiscardReason) {
         if (!isRunning()) return
         if (reason == Segmenter.DiscardReason.TOO_LONG) {
             deadlineArmed = false
-            result = CaptureResult.TooLong
+            finish(CaptureResult.TooLong)
         }
         // TOO_SHORT (a bump) keeps the same attempt waiting, like live detection does.
     }
@@ -150,12 +175,12 @@ class CaptureSession(
         if (stage == CaptureStage.RECORDING) {
             val failure = validator.validate(segment)
             if (failure != null) {
-                result = CaptureResult.Invalid(failure)
+                finish(CaptureResult.Invalid(failure))
                 return
             }
         }
         val exemplar = MotionExemplar.fromSegment(segment)
-        result =
+        val outcome =
             when (stage) {
                 CaptureStage.RECORDING -> {
                     pendingRecordExemplar = exemplar
@@ -175,6 +200,7 @@ class CaptureSession(
                     error("unreachable: isRunning() excludes IDLE")
                 }
             }
+        finish(outcome)
     }
 
     private fun confirmedResult(

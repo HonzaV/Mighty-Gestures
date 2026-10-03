@@ -18,6 +18,7 @@ internal fun MotionExemplar.toSegmentFrames(config: MotionConfig): SegmentFrames
         val linZ = accZ[i] - gravityFilter.gravityZ
         buffer.push(tNanos[i], accX[i], accY[i], accZ[i], linX, linY, linZ, gyroX[i], gyroY[i], gyroZ[i])
     }
+    buffer.onsetIndex = onsetIndex
     return buffer
 }
 
