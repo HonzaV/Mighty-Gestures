@@ -37,12 +37,15 @@
             </intent-filter>
         </activity>
 
-        <!-- Open-app action on the lock screen (decision 12): not exported, started only by this app. -->
+        <!-- Open-app action on the lock screen (decision 12): not exported, started only by this app.
+             taskAffinity="" plus FLAG_ACTIVITY_NEW_TASK (set by LaunchOverKeyguardActivity.start) already
+             gives it its own task; no explicit launchMode, so a second Open-app gesture while the bouncer is
+             up starts a second instance instead of being silently dropped into an existing one's
+             onNewIntent (which this activity does not override). -->
         <activity
             android:name=".platform.action.LaunchOverKeyguardActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:launchMode="singleInstance"
             android:showWhenLocked="true"
             android:taskAffinity=""
             android:theme="@style/Theme.LaunchOverKeyguard" />
