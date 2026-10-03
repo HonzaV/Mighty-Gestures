@@ -13,7 +13,7 @@ Requires JDK 21+ and the Android SDK (`scripts/setup-android-sdk.sh`).
 
 ```sh
 scripts/verify.sh                            # full verification: Google-free check, Spotless, detekt, lint, unit
-                                              # tests, coverage gate (fails below 75 % line coverage)
+                                             # tests, coverage gate (fails below 75 % line coverage)
 ./gradlew :app:assembleDebug                 # build debug APK
 ./gradlew :app:jacocoCoverageVerification    # just the tests + coverage gate, run on its own
 ./gradlew spotlessApply                      # format

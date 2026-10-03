@@ -56,19 +56,24 @@ if [[ "$MODE" != fast ]]; then
   echo "==> Google-free check of resolved (transitive) dependencies"
   scripts/check-no-gms.sh --classpath
 
-  # Cheap: parse the JaCoCo XML's overall (last, i.e. report-level) LINE counter instead of re-running anything.
+  # Cheap: parse the JaCoCo XML's overall (last, i.e. report-level, not per-class/package) LINE counter
+  # instead of re-running anything. Never fails the run: a missing/unparseable report only prints a notice.
   JACOCO_XML=app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml
-  if [[ -f "$JACOCO_XML" ]]; then
-    counter="$(grep -o '<counter type="LINE"[^>]*/>' "$JACOCO_XML" | tail -n1 || true)"
-    if [[ -n "$counter" ]]; then
-      missed="$(sed -E 's/.*missed="([0-9]+)".*/\1/' <<<"$counter")"
-      covered="$(sed -E 's/.*covered="([0-9]+)".*/\1/' <<<"$counter")"
-      total=$((missed + covered))
-      if (( total > 0 )); then
-        pct="$(awk -v c="$covered" -v t="$total" 'BEGIN { printf "%.1f", (c / t) * 100 }')"
-        echo "==> line coverage: ${pct}% (${covered}/${total} lines, gate: 75%)"
-      fi
+  counter=""
+  [[ -f "$JACOCO_XML" ]] && counter="$(grep -o '<counter type="LINE"[^>]*/>' "$JACOCO_XML" | tail -n1 || true)"
+  if [[ -n "$counter" ]]; then
+    missed="$(sed -E 's/.*missed="([0-9]+)".*/\1/' <<<"$counter")"
+    covered="$(sed -E 's/.*covered="([0-9]+)".*/\1/' <<<"$counter")"
+    total=$((missed + covered))
+    if (( total > 0 )); then
+      # LC_ALL=C: some locales (e.g. cs_CZ) make awk print a decimal comma instead of a dot.
+      pct="$(LC_ALL=C awk -v c="$covered" -v t="$total" 'BEGIN { printf "%.1f", (c / t) * 100 }')"
+      echo "==> app line coverage: ${pct}% (${covered}/${total} lines)"
+    else
+      echo "==> app line coverage: report unparseable (0 lines in $JACOCO_XML)"
     fi
+  else
+    echo "==> app line coverage: report not found ($JACOCO_XML)"
   fi
 
   mv "$STARTED" "$STATE_DIR/last-verify"
