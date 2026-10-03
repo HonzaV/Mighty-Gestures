@@ -18,11 +18,13 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowCameraCharacteristics
 
 /** Dispatch tests: each branch's own behavior is covered by that executor's dedicated test. */
@@ -129,5 +131,24 @@ class AndroidActionExecutorTest {
             assertEquals(ActionResult.Success, result)
             val started = shadowOf(context).nextStartedActivity
             assertEquals(LaunchOverKeyguardActivity::class.java.name, started.component?.className)
+        }
+
+    /**
+     * DEFECT: the orchestrator's brief for this review states the dispatcher contract explicitly — "an
+     * exception thrown by any executor must become `ActionResult.Failed`, never crash the caller." There is
+     * no such contract written down in ADR 0004 or spec 0001, and `AndroidActionExecutor.execute()` has no
+     * catch-all around its `when` dispatch: it relies entirely on each executor catching its own framework
+     * exceptions. [ToggleTorchActionExecutorTest]'s two defect tests show at least one executor that does not.
+     * This test drives the same failure through the dispatcher to show the caller (the rule engine, in a
+     * later PR) gets an uncaught exception instead of a `Failed` result for a gesture that fires at the wrong
+     * moment — i.e. a crash, not a missed action.
+     */
+    @Test
+    @Config(shadows = [ToggleTorchActionExecutorTest.DisconnectedCameraManagerShadow::class])
+    fun `AC-A8 defect dispatcher does not convert an executor's uncaught exception to Failed`() =
+        runTest {
+            val result = executor.execute(ActionSpec.ToggleTorch, actionContext)
+
+            assertTrue("expected a Failed result, not a propagated exception", result is ActionResult.Failed)
         }
 }

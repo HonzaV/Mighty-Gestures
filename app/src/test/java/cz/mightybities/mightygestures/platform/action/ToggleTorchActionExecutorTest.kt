@@ -89,6 +89,70 @@ class ToggleTorchActionExecutorTest {
     }
 
     /**
+     * DEFECT (AC-A4: "`CAMERA_IN_USE` or other `CameraAccessException` -> `Failed(TorchUnavailable)`, no
+     * crash"): `ToggleTorchActionExecutor.findTorchCameraId()` calls `cameraManager.cameraIdList` outside the
+     * `try` block that only wraps `setTorchMode`. `CameraManager.getCameraIdList` is documented to throw
+     * `CameraAccessException` (e.g. on a camera service disconnect), and this test proves that exception is
+     * not caught: it reaches the test as an uncaught exception instead of `executor.execute()` returning
+     * `Failed(TorchUnavailable)`. A gesture firing at that moment would crash the host process instead of
+     * just failing to toggle the torch.
+     */
+    @Test
+    @Config(shadows = [DisconnectedCameraManagerShadow::class])
+    fun `AC-A4 defect camera disconnected while listing cameras crashes instead of failing gracefully`() {
+        val executor = ToggleTorchActionExecutor(context)
+
+        val result = executor.execute()
+
+        assertEquals(ActionResult.Failed(ActionFailure.TorchUnavailable), result)
+    }
+
+    /**
+     * DEFECT (AC-A4, same clause as above): the executor caches `torchCameraId` after the first successful
+     * toggle and never re-validates it. If that camera disappears (e.g. unplugged external camera, or a
+     * camera id that becomes invalid across a hot-swap) before the next toggle, `setTorchMode` is documented
+     * to reject an unknown id, and Robolectric's own shadow throws `IllegalArgumentException` for it
+     * (verified by reading `ShadowCameraManager.setTorchMode`'s bytecode: a Guava `Preconditions.checkArgument`
+     * on `cameraIdToCharacteristics.containsKey`). That is not a `CameraAccessException`, so the executor's
+     * `catch` does not see it either.
+     */
+    @Test
+    fun `AC-A4 defect torch camera removed after its id was cached crashes on the next toggle`() {
+        addTorchCamera("0")
+        val executor = ToggleTorchActionExecutor(context)
+        val cameraManager = context.getSystemService(CameraManager::class.java)
+        executor.execute() // caches "0", turns the torch on
+        shadowOf(cameraManager).removeCamera("0")
+
+        val result = executor.execute()
+
+        assertEquals(ActionResult.Failed(ActionFailure.TorchUnavailable), result)
+    }
+
+    /**
+     * Stands in for `getCameraIdList` throwing `CameraAccessException` on a camera-service disconnect
+     * (verified: documented on `CameraManager#getCameraIdList`). Robolectric's real `ShadowCameraManager`
+     * never throws from this method, so (per docs/engineering/testing.md) this dedicated shadow forces the
+     * path.
+     */
+    @Implements(CameraManager::class)
+    class DisconnectedCameraManagerShadow {
+        @Implementation
+        fun getCameraIdList(): Array<String> = throw CameraAccessException(CameraAccessException.CAMERA_DISCONNECTED)
+
+        // Needed so the executor's init-time registration does not fall through to the unconfigured real
+        // CameraManager implementation; the test only cares about the enumeration failure.
+        @Suppress("UnusedParameter")
+        @Implementation
+        fun registerTorchCallback(
+            callback: CameraManager.TorchCallback,
+            handler: android.os.Handler?,
+        ) {
+            // No-op.
+        }
+    }
+
+    /**
      * Simulates `setTorchMode` throwing `CameraAccessException` (e.g. `CAMERA_IN_USE`, AC-A4). The real
      * `ShadowCameraManager.setTorchMode` only throws `IllegalArgumentException` for an unregistered camera id
      * (verified by reading its bytecode), not `CameraAccessException`, so this dedicated shadow stands in for
