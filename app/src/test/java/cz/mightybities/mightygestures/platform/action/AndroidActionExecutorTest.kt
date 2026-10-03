@@ -51,7 +51,7 @@ class AndroidActionExecutorTest {
 
     @After
     fun tearDown() {
-        AccessibilityHostHandle.host = null
+        AccessibilityHostHandle.host?.let { AccessibilityHostHandle.clear(it) }
     }
 
     @Test
@@ -82,13 +82,14 @@ class AndroidActionExecutorTest {
     fun `dispatches LockScreen`() =
         runTest {
             var requestedAction: Int? = null
-            AccessibilityHostHandle.host =
+            AccessibilityHostHandle.publish(
                 object : AccessibilityActionHost {
                     override fun performGlobalAction(globalAction: Int): Boolean {
                         requestedAction = globalAction
                         return true
                     }
-                }
+                },
+            )
 
             val result = executor.execute(ActionSpec.LockScreen, actionContext)
 

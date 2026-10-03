@@ -20,7 +20,7 @@ class AndroidSpecialAccessCheckerTest {
 
     @After
     fun tearDown() {
-        AccessibilityHostHandle.host = null
+        AccessibilityHostHandle.host?.let { AccessibilityHostHandle.clear(it) }
     }
 
     @Test
@@ -35,13 +35,13 @@ class AndroidSpecialAccessCheckerTest {
 
     @Test
     fun `accessibility service access reflects whether the host is bound`() {
-        AccessibilityHostHandle.host = null
         assertFalse(checker.isGranted(SpecialAccess.ACCESSIBILITY_SERVICE))
 
-        AccessibilityHostHandle.host =
+        AccessibilityHostHandle.publish(
             object : AccessibilityActionHost {
                 override fun performGlobalAction(globalAction: Int) = true
-            }
+            },
+        )
         assertTrue(checker.isGranted(SpecialAccess.ACCESSIBILITY_SERVICE))
     }
 }
