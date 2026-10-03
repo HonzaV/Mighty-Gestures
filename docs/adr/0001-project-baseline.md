@@ -31,6 +31,12 @@ editing `AGENTS.md` and noting it here, or supersede this ADR.
 - Spotless + ktlint (`ktlint_official`) + detekt + Android Lint; JDK 21 to build and test, bytecode target Java 17.
   *Changed 2026-10-01 by the maintainer from "JDK 17 toolchain": Robolectric's SDK 37 runtime is Java 21 bytecode.*
 - Emulator AVD `mg_api35` on the AOSP image (no Google APIs).
+  *Changed 2026-10-02 by the maintainer: a second AVD, `mg_api37`, is set up for targetSdk-37 behavior checks.
+  It prefers an AOSP image but may use Google's `google_apis` image instead, as a test-only exception for
+  emulator testing, because no AOSP ("default") x86_64 system image for API 37 was published at the time of
+  this decision. The app itself still never depends on Google APIs; the `google_apis_playstore`/`_ps16k` and
+  wear/desktop/automotive images remain disallowed. If/when Google publishes an AOSP API 37 image, that is
+  preferred over `google_apis`.*
 
 ## Consequences
 - `minSdk 35` excludes devices below Android 15 but removes compatibility branches and lets us rely on modern
