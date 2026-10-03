@@ -127,4 +127,93 @@ class LaunchOverKeyguardActivityTest {
 
         assertTrue(activity.isFinishing)
     }
+
+    @Test
+    fun `dismiss success with a package uninstalled between the check and the launch finishes without crashing`() {
+        // LaunchAppActionExecutor only checks installation before starting the trampoline (AC-A3); the target
+        // can still disappear while the bouncer is up. launchTarget's re-resolution must handle that itself.
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor("com.example.not.installed"),
+            )
+        val activity = controller.get()
+        activity.keyguardDismisser = FakeKeyguardDismisser(KeyguardDismissOutcome.SUCCEEDED)
+
+        controller.create()
+
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun `onDestroy cancels the safety timeout so it never fires on a gone activity`() {
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        activity.keyguardDismisser =
+            object : KeyguardDismisser {
+                override fun requestDismiss(
+                    activity: android.app.Activity,
+                    onResult: (KeyguardDismissOutcome) -> Unit,
+                ) {
+                    // Never calls onResult: the activity is torn down (e.g. the user leaves) before any
+                    // outcome arrives.
+                }
+            }
+        controller.create()
+
+        controller.destroy()
+        // Advancing the clock past the 60 s safety timeout must not throw (e.g. a double finish()) now that
+        // the activity is already gone.
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(61))
+
+        assertTrue(activity.isFinishing || activity.isDestroyed)
+    }
+
+    /**
+     * Drives the trampoline through the real [AndroidKeyguardDismisser] (default `keyguardDismisser`), not the
+     * fake, so a swapped outcome mapping would be caught here even if [AndroidKeyguardDismisserTest] did not
+     * exist.
+     */
+    @Test
+    fun `end-to-end with the real dismisser launches the target once the keyguard unlocks`() {
+        val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
+        shadowOf(keyguardManager).setKeyguardLocked(true)
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        controller.create()
+        assertNull(shadowOf(activity).nextStartedActivity)
+
+        shadowOf(keyguardManager).setKeyguardLocked(false)
+
+        val started = shadowOf(activity).nextStartedActivity
+        assertTrue(started.component?.packageName == context.packageName)
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun `end-to-end with the real dismisser launches nothing if the bouncer stays up`() {
+        val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
+        shadowOf(keyguardManager).setKeyguardLocked(true)
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        controller.create()
+
+        shadowOf(keyguardManager).setKeyguardLocked(true)
+
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
 }
