@@ -48,6 +48,10 @@ if (( WITH_API37 )) && (( ! WITH_EMULATOR )); then
   echo "usage: $0 --with-emulator --api37 (--api37 requires --with-emulator)" >&2
   exit 2
 fi
+if (( WITH_API37 )) && [[ "$API37_AVD_NAME" == "$AVD_NAME" ]]; then
+  echo "usage: $0 --api37: API37_AVD_NAME and AVD_NAME must differ (both are '$API37_AVD_NAME') - set one of them to a different name" >&2
+  exit 2
+fi
 
 log() { printf '\033[1;34m[setup-android-sdk]\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m[setup-android-sdk]\033[0m %s\n' "$*" >&2; exit 1; }
