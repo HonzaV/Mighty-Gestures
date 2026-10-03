@@ -146,9 +146,11 @@ if (( WITH_API37 )); then
     API37_SYSIMG="$API37_GOOGLE"
     log "API 37: no AOSP image published yet; using google_apis for emulator testing only (test-only exception, maintainer decision) - $API37_SYSIMG. The app itself never depends on Google APIs."
   else
+    # The grep can legitimately match nothing (e.g. an arm64-only or empty android-37 listing); add
+    # `|| true` so that case doesn't trip `set -e` before the die below runs.
     API37_TAGS="$(grep -oE "android-37(\.[0-9]+)?(-[a-z0-9]+)?${S}[a-zA-Z0-9_-]+${S}x86_64" <<<"$LIST" \
-      | sort -u | paste -sd',' - | sed 's/,/, /g')"
-    die "no AOSP or google_apis API 37 x86_64 image in 'sdkmanager --list'${API37_TAGS:+ (found: $API37_TAGS)}"
+      | sort -u | paste -sd',' - | sed 's/,/, /g' || true)"
+    die "no AOSP or google_apis API 37 x86_64 image in 'sdkmanager --list' (found: ${API37_TAGS:-none})"
   fi
   PKGS+=("$API37_SYSIMG") # --api37 requires --with-emulator above, which already queues the "emulator" package
 fi
@@ -158,7 +160,11 @@ log "Installing: ${PKGS[*]}"
 yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
 
 if (( WITH_EMULATOR )); then
-  if ! "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$AVD_NAME"; then
+  # Capture the listing once into a variable instead of piping straight into `grep -q`: with
+  # pipefail, `grep -q` can exit as soon as it finds its match, sending SIGPIPE to avdmanager and
+  # making the pipeline's exit status racily non-zero, which `set -e` would then treat as failure.
+  EXISTING_AVDS="$("$AVDMANAGER" list avd -c 2>/dev/null)" || true
+  if ! grep -qx -- "$AVD_NAME" <<<"$EXISTING_AVDS"; then
     log "Creating AVD $AVD_NAME..."
     # avdmanager always takes the ';' form of the package path.
     echo no | "$AVDMANAGER" create avd -n "$AVD_NAME" -k "${SYSIMG//\//;}" -d pixel_7 >/dev/null
@@ -168,7 +174,8 @@ if (( WITH_EMULATOR )); then
 fi
 
 if (( WITH_API37 )); then
-  if "$AVDMANAGER" list avd -c 2>/dev/null | grep -qx "$API37_AVD_NAME"; then
+  # --api37 requires --with-emulator (enforced above), so $EXISTING_AVDS is already populated.
+  if grep -qx -- "$API37_AVD_NAME" <<<"$EXISTING_AVDS"; then
     # An AVD can outlive the system image it was created from, or be created manually from an
     # unrelated image (e.g. API 35, or arm64-v8a). Re-check config.ini rather than trusting the AVD
     # name: tag.id must be 'default' or 'google_apis' (the two tags this script itself ever
@@ -185,6 +192,13 @@ if (( WITH_API37 )); then
       default|google_apis) ;;
       *) die "AVD $API37_AVD_NAME already exists with an unexpected system-image tag '$API37_TAG' in $API37_CONFIG (expected 'default' or 'google_apis') - remove it or set API37_AVD_NAME to a new name and re-run." ;;
     esac
+    # The google_apis exception only applies while no AOSP image exists (AGENTS.md §2, test-only
+    # exception). If one has since appeared, silently continuing to use it is not allowed - the AVD
+    # must be recreated from the AOSP image, but deleting it automatically would be destructive, so
+    # die and tell the caller how to do it themselves.
+    if [[ "$API37_TAG" == "google_apis" && -n "$API37_DEFAULT" ]]; then
+      die "AVD $API37_AVD_NAME already exists using the google_apis test-only exception, but an AOSP ('default') API 37 image is now available ($API37_DEFAULT) - the exception no longer applies. Remove it with: \"$AVDMANAGER\" delete avd -n $API37_AVD_NAME ; then re-run this command."
+    fi
     API37_SYSDIR="$(grep -m1 -oE '^image\.sysdir\.1=.*' "$API37_CONFIG" 2>/dev/null | cut -d= -f2- || true)"
     [[ -n "$API37_SYSDIR" ]] \
       || die "AVD $API37_AVD_NAME already exists but $API37_CONFIG has no 'image.sysdir.1' key - cannot verify its API level/ABI. Remove it or set API37_AVD_NAME to a new name and re-run."

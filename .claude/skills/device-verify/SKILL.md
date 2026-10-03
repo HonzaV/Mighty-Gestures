@@ -14,11 +14,13 @@ session scratchpad, never in the repo.
 Two AVDs may be available: `mg_api35` (AOSP, no Google APIs; minSdk baseline) and `mg_api37` (targetSdk-37
 behavior, e.g. task/background-launch rules that change per target SDK). `mg_api37` prefers an AOSP image but
 may be built from Google's `google_apis` image instead, as a test-only exception for emulator testing when no
-AOSP API 37 image is published yet — the app itself never depends on Google APIs; check
-`~/.android/avd/mg_api37.avd/config.ini`'s `tag.id` if it matters which. Use `mg_api35` for routine checks;
-switch to `mg_api37` specifically when a behavior depends on targetSdk 37 / Android 17 runtime behavior.
-Neither AVD substitutes for the maintainer's real-phone smoke check that some behavior still requires —
-report emulator results as emulator-only and ask for the real-device check.
+AOSP API 37 image is published yet — the app itself never depends on Google APIs; check `tag.id` in
+`$ANDROID_AVD_HOME/mg_api37.avd/config.ini` (`$ANDROID_AVD_HOME` defaults to `~/.android/avd`) if it matters
+which. The setup script itself re-checks this and refuses to keep using a `google_apis` AVD once an AOSP
+image becomes available, dying with instructions to delete it instead of deleting it automatically. Use
+`mg_api35` for routine checks; switch to `mg_api37` specifically when a behavior depends on targetSdk 37 /
+Android 17 runtime behavior. Neither AVD substitutes for the maintainer's real-phone smoke check that some
+behavior still requires — report emulator results as emulator-only and ask for the real-device check.
 
 ```bash
 adb devices                                   # already attached?
