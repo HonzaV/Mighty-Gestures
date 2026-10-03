@@ -111,6 +111,35 @@ class MotionMatcherTest {
     }
 
     @Test
+    fun `bestMatch picks the lowest-distance rule regardless of map iteration order (AC-M8)`() {
+        // Regression against a "first match within tau wins" implementation: the previous test
+        // above inserts "exact" first, so it alone cannot tell "lowest distance" apart from "first
+        // encountered". Here "close" (the worse match) is inserted first instead.
+        val live =
+            ProcessedSegment(
+                FloatArray(config.resampledFrameCount * 3) { 1f },
+                3,
+                false,
+                500_000_000L,
+                5f,
+                config.gyroQuietThreshold,
+            )
+        val exact = ProcessedSegment(live.frames.copyOf(), 3, false, 500_000_000L, 5f, config.gyroQuietThreshold)
+        val close =
+            ProcessedSegment(
+                FloatArray(config.resampledFrameCount * 3) { 1.1f },
+                3,
+                false,
+                500_000_000L,
+                5f,
+                config.gyroQuietThreshold,
+            )
+        val templates = linkedMapOf("close" to listOf(close), "exact" to listOf(exact))
+        val best = matcher.bestMatch(live, templates)
+        assertEquals("exact", best?.key)
+    }
+
+    @Test
     fun `bestMatch returns null when nothing is within tau`() {
         val live =
             ProcessedSegment(
