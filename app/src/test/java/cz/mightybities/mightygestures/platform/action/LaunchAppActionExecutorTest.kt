@@ -52,4 +52,30 @@ class LaunchAppActionExecutorTest {
         assertEquals(ActionResult.Failed(ActionFailure.AppNotFound), result)
         assertNull(shadowOf(context).nextStartedActivity)
     }
+
+    @Test
+    fun `a stale unlocked snapshot is overridden by the live keyguard state`() {
+        // The caller's keyguardLocked snapshot says "unlocked", but the keyguard has since shown; re-checking
+        // must still route to the trampoline instead of a direct, likely-rejected startActivity.
+        val liveLockedExecutor =
+            LaunchAppActionExecutor(context, keyguardLockQuery = { true })
+
+        val result = liveLockedExecutor.execute(context.packageName, keyguardLocked = false)
+
+        assertEquals(ActionResult.Success, result)
+        val started = shadowOf(context).nextStartedActivity
+        assertEquals(LaunchOverKeyguardActivity::class.java.name, started.component?.className)
+    }
+
+    @Test
+    fun `a stale locked snapshot still uses the trampoline even if the live state is unlocked`() {
+        val liveUnlockedExecutor =
+            LaunchAppActionExecutor(context, keyguardLockQuery = { false })
+
+        val result = liveUnlockedExecutor.execute(context.packageName, keyguardLocked = true)
+
+        assertEquals(ActionResult.Success, result)
+        val started = shadowOf(context).nextStartedActivity
+        assertEquals(LaunchOverKeyguardActivity::class.java.name, started.component?.className)
+    }
 }

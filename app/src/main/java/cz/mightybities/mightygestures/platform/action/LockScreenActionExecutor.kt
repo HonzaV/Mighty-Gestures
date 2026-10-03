@@ -15,7 +15,10 @@ class LockScreenActionExecutor {
         val host =
             AccessibilityHostHandle.host
                 ?: return ActionResult.Failed(ActionFailure.MissingAccess(SpecialAccess.ACCESSIBILITY_SERVICE))
-        host.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
-        return ActionResult.Success
+        val succeeded = host.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+        // A false result means the system refused the action (spec 0001 defines no specific reason for this
+        // case); reporting it as Unsupported is better than telling the user the phone locked when it did not
+        // (security review finding, PR #4 fix round).
+        return if (succeeded) ActionResult.Success else ActionResult.Failed(ActionFailure.Unsupported)
     }
 }

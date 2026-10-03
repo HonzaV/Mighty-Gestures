@@ -15,19 +15,20 @@ class LockScreenActionExecutorTest {
 
     @After
     fun tearDown() {
-        AccessibilityHostHandle.host = null
+        AccessibilityHostHandle.host?.let { AccessibilityHostHandle.clear(it) }
     }
 
     @Test
     fun `calls performGlobalAction LOCK_SCREEN on the bound host`() {
         var requestedAction: Int? = null
-        AccessibilityHostHandle.host =
+        AccessibilityHostHandle.publish(
             object : AccessibilityActionHost {
                 override fun performGlobalAction(globalAction: Int): Boolean {
                     requestedAction = globalAction
                     return true
                 }
-            }
+            },
+        )
 
         val result = executor.execute()
 
@@ -36,9 +37,20 @@ class LockScreenActionExecutorTest {
     }
 
     @Test
-    fun `missing host fails instead of crashing`() {
-        AccessibilityHostHandle.host = null
+    fun `host refusing the action fails instead of reporting a false Success`() {
+        AccessibilityHostHandle.publish(
+            object : AccessibilityActionHost {
+                override fun performGlobalAction(globalAction: Int): Boolean = false
+            },
+        )
 
+        val result = executor.execute()
+
+        assertEquals(ActionResult.Failed(ActionFailure.Unsupported), result)
+    }
+
+    @Test
+    fun `missing host fails instead of crashing`() {
         val result = executor.execute()
 
         assertEquals(
