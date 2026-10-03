@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Flashlight toggle (spec 0001, "Actions"). `CameraManager.setTorchMode` documents no permission requirement,
@@ -19,11 +20,12 @@ class ToggleTorchActionExecutor(
 ) {
     private val cameraManager = context.getSystemService(CameraManager::class.java)
 
-    @Volatile
-    private var torchCameraId: String? = null
+    // Keyed by camera id, not just the one we last toggled: the torch can be turned on by something other
+    // than this executor (e.g. a Quick Settings tile), and we must not assume it starts off.
+    private val torchStates = ConcurrentHashMap<String, Boolean>()
 
     @Volatile
-    private var torchOn: Boolean = false
+    private var torchCameraId: String? = null
 
     init {
         cameraManager.registerTorchCallback(
@@ -32,11 +34,11 @@ class ToggleTorchActionExecutor(
                     cameraId: String,
                     enabled: Boolean,
                 ) {
-                    if (cameraId == torchCameraId) torchOn = enabled
+                    torchStates[cameraId] = enabled
                 }
 
                 override fun onTorchModeUnavailable(cameraId: String) {
-                    if (cameraId == torchCameraId) torchOn = false
+                    torchStates[cameraId] = false
                 }
             },
             Handler(Looper.getMainLooper()),
@@ -47,8 +49,9 @@ class ToggleTorchActionExecutor(
         val cameraId =
             torchCameraId ?: findTorchCameraId() ?: return ActionResult.Failed(ActionFailure.TorchUnavailable)
         torchCameraId = cameraId
+        val currentlyOn = torchStates[cameraId] ?: false
         return try {
-            cameraManager.setTorchMode(cameraId, !torchOn)
+            cameraManager.setTorchMode(cameraId, !currentlyOn)
             ActionResult.Success
         } catch (expected: CameraAccessException) {
             ActionResult.Failed(ActionFailure.TorchUnavailable)

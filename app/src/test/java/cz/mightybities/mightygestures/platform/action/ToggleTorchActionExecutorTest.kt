@@ -46,6 +46,21 @@ class ToggleTorchActionExecutorTest {
     }
 
     @Test
+    fun `reflects torch state changed externally, e g from Quick Settings`() {
+        addTorchCamera("0")
+        val executor = ToggleTorchActionExecutor(context)
+        val cameraManager = context.getSystemService(CameraManager::class.java)
+
+        // Something other than this executor (e.g. a Quick Settings tile) turns the torch on first. The
+        // executor has never called execute() yet, so it must not assume the torch starts off.
+        cameraManager.setTorchMode("0", true)
+
+        executor.execute()
+
+        assertEquals(false, shadowOf(cameraManager).getTorchMode("0"))
+    }
+
+    @Test
     fun `prefers a back-facing camera over a front-facing one`() {
         addTorchCamera("front", lensFacing = CameraCharacteristics.LENS_FACING_FRONT)
         addTorchCamera("back", lensFacing = CameraCharacteristics.LENS_FACING_BACK)
