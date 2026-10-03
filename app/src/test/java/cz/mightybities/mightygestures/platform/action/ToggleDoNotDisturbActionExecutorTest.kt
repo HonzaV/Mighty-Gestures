@@ -48,7 +48,7 @@ class ToggleDoNotDisturbActionExecutorTest {
         val rules = notificationManager.automaticZenRules
         assertEquals(1, rules.size)
         val rule = rules.values.first()
-        assertEquals("Mighty Gestures", rule.name)
+        assertEquals(context.getString(cz.mightybities.mightygestures.R.string.app_name), rule.name)
         val ruleId = rules.keys.first()
         assertEquals(
             android.service.notification.Condition.STATE_TRUE,
