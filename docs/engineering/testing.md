@@ -84,7 +84,9 @@ release for each new gesture (emulator sensor timing is not realistic).
 ## Coverage
 
 JaCoCo measures the debug unit tests (JVM + Robolectric). A global gate fails the build below **75 % line
-coverage**: `./gradlew :app:jacocoCoverageVerification` (also part of `check` and CI; HTML report in
-`app/build/reports/jacoco/jacocoTestReport/html/`). Never lower the threshold or widen the exclusions to make it
-pass. The `domain` layer (detectors, rule engine) should stay above ~80 % line coverage; uncovered branches in
+coverage**: `./gradlew :app:jacocoCoverageVerification` (also part of `check`, `scripts/verify.sh` — full and
+`--device`, not `--fast` — and CI, which runs `scripts/verify.sh`; HTML report in
+`app/build/reports/jacoco/jacocoTestReport/html/`). `scripts/verify.sh` prints the overall line-coverage
+percentage after a full or `--device` run. Never lower the threshold or widen the exclusions to make it pass.
+The `domain` layer (detectors, rule engine) should stay above ~80 % line coverage; uncovered branches in
 detectors need a reason.
