@@ -47,7 +47,8 @@ class AndroidKeyguardDismisser : KeyguardDismisser {
 /**
  * Trampoline for "Open app" while the keyguard is showing (spec 0001 decision 12). Not exported; started by
  * [LaunchAppActionExecutor]. Requests the keyguard dismiss (bouncer for a secure keyguard); on success,
- * re-resolves the target package through the launcher catalog — never a raw component — and starts it.
+ * re-resolves the target package via `PackageManager.getLaunchIntentForPackage` — never a raw component — and
+ * starts it.
  *
  * No `noHistory`: `requestDismissKeyguard`'s callback "will not be invoked if the activity was destroyed
  * before the callback was received" (verified, KeyguardManager docs), and `noHistory` could finish this
