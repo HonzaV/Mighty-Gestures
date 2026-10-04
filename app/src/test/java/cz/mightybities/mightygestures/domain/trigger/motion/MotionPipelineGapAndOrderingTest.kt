@@ -67,12 +67,16 @@ class MotionPipelineGapAndOrderingTest {
         pipeline.discardListener = { sawDiscard = true }
         // Settle to ARMED first, so the reset is observable (SETTLING -> SETTLING would be a no-op look-alike).
         var t = 0L
+        var lastDeliveredT = 0L
         repeat(30) {
             pipeline.onSample(SensorKind.ACC, t, 0f, 0f, 9.81f)
+            lastDeliveredT = t
             t += 20_000_000L
         }
         assertEquals(Segmenter.State.ARMED, pipeline.state)
-        pipeline.onSample(SensorKind.ACC, t + config.maxTimestampGapNanos + 1L, 0f, 0f, 9.81f)
+        // Measured from the last *delivered* sample (580ms), not from the loop variable `t` (600ms,
+        // one frame period past it): using `t` here would test a 220ms+1ns gap, not a 200ms+1ns one.
+        pipeline.onSample(SensorKind.ACC, lastDeliveredT + config.maxTimestampGapNanos + 1L, 0f, 0f, 9.81f)
         assertEquals(
             "a gap one nanosecond over the threshold must reset to SETTLING",
             Segmenter.State.SETTLING,
