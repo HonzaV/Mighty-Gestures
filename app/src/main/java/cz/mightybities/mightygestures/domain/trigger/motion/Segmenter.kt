@@ -233,16 +233,27 @@ internal class Segmenter(
         }
     }
 
+    /**
+     * [enterArmed]'s `clearActive = false` form runs *before* [listener]/[discardListener] is
+     * invoked (milestone 1 fix round, item 2): both callbacks may legally call back into this
+     * segmenter re-entrantly (e.g. `CaptureSession.startConfirming()`, called synchronously from
+     * its `resultListener`, calls [MotionPipeline.reset] → [reset]). Moving the state/counter
+     * transition first means a re-entrant [reset] — which sets `SETTLING` — always runs *after*
+     * this method's own `ARMED` transition and is therefore never clobbered by it. `active` itself
+     * is cleared only once the callback has returned: the callback reads it by reference (the
+     * segment-end view), not a copy.
+     */
     private fun finishSegment() {
         val activeDurationNanos = active.tNanos[lastActiveIndex] - onsetTimestampNanos
         if (activeDurationNanos < config.minActiveDurationNanos) {
+            enterArmed(clearActive = false)
             discardListener?.invoke(DiscardReason.TOO_SHORT)
-            enterArmed()
         } else {
             active.length = lastActiveIndex + 1
+            enterArmed(clearActive = false)
             listener.onSegment(active)
-            enterArmed()
         }
+        active.clear()
     }
 
     private fun discardTooLong() {
@@ -255,7 +266,7 @@ internal class Segmenter(
         active.clear()
     }
 
-    private fun enterArmed() {
+    private fun enterArmed(clearActive: Boolean = true) {
         state = State.ARMED
         quietAccumNanos = 0L
         activeStreak = 0
@@ -263,7 +274,7 @@ internal class Segmenter(
         // No ring.clear() here either (fix for item D21, same reasoning as confirmOnset): the ring
         // already holds `active`'s own recent frames (handleActive now pushes into both), so
         // re-arming right after a segment keeps that rolling pre-roll history instead of wiping it.
-        active.clear()
+        if (clearActive) active.clear()
     }
 
     private companion object {
