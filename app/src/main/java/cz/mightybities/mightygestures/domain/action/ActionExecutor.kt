@@ -47,9 +47,10 @@ sealed interface ActionFailure {
 
     /**
      * Additive to ADR 0004's `ActionFailure` shape (maintainer decision 2026-10-04): the app-owned Do Not
-     * Disturb `AutomaticZenRule` exists but the user disabled it in Settings. Android ignores condition
-     * updates for a disabled rule (*inferred*; not confirmed by reading AOSP's `ZenModeHelper`), so the
-     * gesture must never re-enable or recreate the rule — that would override the user's own Settings choice.
+     * Disturb `AutomaticZenRule` exists but the user disabled it in Settings. A disabled rule is never active
+     * whatever its condition (verified: AOSP `ZenModeConfig.ZenRule.isActive`/`isAutomaticActive` check
+     * `enabled`, main and android15-release). The gesture must not re-enable or recreate the rule, because
+     * that would override the user's own Settings choice.
      * Milestone #5's UI tells the user to re-enable the mode in Settings instead.
      */
     data object DoNotDisturbModeDisabled : ActionFailure
