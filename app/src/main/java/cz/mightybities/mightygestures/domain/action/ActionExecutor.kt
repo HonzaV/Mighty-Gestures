@@ -46,6 +46,15 @@ sealed interface ActionFailure {
     data object Unsupported : ActionFailure
 
     /**
+     * Additive to ADR 0004's `ActionFailure` shape (maintainer decision 2026-10-04): the app-owned Do Not
+     * Disturb `AutomaticZenRule` exists but the user disabled it in Settings. Android ignores condition
+     * updates for a disabled rule (*inferred*; not confirmed by reading AOSP's `ZenModeHelper`), so the
+     * gesture must never re-enable or recreate the rule — that would override the user's own Settings choice.
+     * Milestone #5's UI tells the user to re-enable the mode in Settings instead.
+     */
+    data object DoNotDisturbModeDisabled : ActionFailure
+
+    /**
      * Additive to ADR 0004's `ActionFailure` shape (PR #4 fix round): an executor threw an exception the
      * dispatcher ([cz.mightybities.mightygestures.platform.action.AndroidActionExecutor]) did not expect and
      * could not map to a more specific reason. Carries **no payload** — an exception message can contain a

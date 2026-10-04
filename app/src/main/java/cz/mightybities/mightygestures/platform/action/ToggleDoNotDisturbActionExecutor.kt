@@ -24,6 +24,10 @@ import cz.mightybities.mightygestures.platform.access.SpecialAccessChecker
  * [configurationActivity] is injected (`MainActivity`'s `ComponentName`, by whoever wires this executor)
  * rather than referenced by class here, so `platform/action` does not import an app-level `ui`/top-level
  * activity class (code review, PR #4 fix round 2).
+ *
+ * If the rule exists but the user disabled it in Settings (`AutomaticZenRule.isEnabled == false`), we fail
+ * with [ActionFailure.DoNotDisturbModeDisabled] instead of toggling it: re-enabling or recreating the rule
+ * here would override the user's own Settings choice (maintainer decision 2026-10-04).
  */
 class ToggleDoNotDisturbActionExecutor(
     private val context: Context,
@@ -56,7 +60,7 @@ class ToggleDoNotDisturbActionExecutor(
      */
     fun removeZenRule() {
         try {
-            findRuleId()?.let { notificationManager.removeAutomaticZenRule(it) }
+            findRule()?.key?.let { notificationManager.removeAutomaticZenRule(it) }
         } catch (ignored: SecurityException) {
             // Nothing to clean up without access; the rule (if any) is simply left behind.
         }
@@ -73,7 +77,11 @@ class ToggleDoNotDisturbActionExecutor(
      * Which shipped releases enable `modes_ui` is *inferred* (Android 16+), not verified.
      */
     private fun toggleRule(): ActionResult {
-        val ruleId = findRuleId() ?: notificationManager.addAutomaticZenRule(buildRule())
+        val existingRule = findRule()
+        if (existingRule != null && !existingRule.value.isEnabled) {
+            return ActionResult.Failed(ActionFailure.DoNotDisturbModeDisabled)
+        }
+        val ruleId = existingRule?.key ?: notificationManager.addAutomaticZenRule(buildRule())
         val currentlyOn = notificationManager.getAutomaticZenRuleState(ruleId) == Condition.STATE_TRUE
         val newState = if (currentlyOn) Condition.STATE_FALSE else Condition.STATE_TRUE
         notificationManager.setAutomaticZenRuleState(
@@ -83,10 +91,9 @@ class ToggleDoNotDisturbActionExecutor(
         return ActionResult.Success
     }
 
-    private fun findRuleId(): String? =
+    private fun findRule(): Map.Entry<String, AutomaticZenRule>? =
         notificationManager.automaticZenRules.entries
             .firstOrNull { (_, rule) -> rule.conditionId == conditionId }
-            ?.key
 
     private fun buildRule(): AutomaticZenRule =
         AutomaticZenRule(

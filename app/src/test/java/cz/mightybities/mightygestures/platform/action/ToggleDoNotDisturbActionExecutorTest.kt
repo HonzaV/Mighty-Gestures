@@ -1,5 +1,6 @@
 package cz.mightybities.mightygestures.platform.action
 
+import android.app.AutomaticZenRule
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.service.notification.Condition
@@ -196,6 +197,45 @@ class ToggleDoNotDisturbActionExecutorTest {
         companion object {
             var lastCondition: Condition? = null
         }
+    }
+
+    @Test
+    fun `rule disabled externally (e g in Settings) fails instead of re-enabling or recreating it`() {
+        // Maintainer decision 2026-10-04: Android ignores condition updates for a disabled rule, so the
+        // gesture must respect the user's Settings choice instead of silently turning it back on.
+        shadowNotificationManager.setNotificationPolicyAccessGranted(true)
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
+        executor.execute() // creates the rule, turns it on (STATE_TRUE)
+        val ruleId = notificationManager.automaticZenRules.keys.first()
+        val originalRule = notificationManager.automaticZenRules.getValue(ruleId)
+
+        // Simulate the user disabling the mode from Settings directly (not through this executor).
+        val disabledRule =
+            AutomaticZenRule(
+                originalRule.name,
+                originalRule.owner,
+                originalRule.configurationActivity,
+                originalRule.conditionId,
+                originalRule.zenPolicy,
+                originalRule.interruptionFilter,
+                false,
+            )
+        notificationManager.updateAutomaticZenRule(ruleId, disabledRule)
+        // Precondition: isEnabled survives the shadow's round-trip, so the setup actually disabled the rule.
+        assertEquals(false, notificationManager.automaticZenRules.getValue(ruleId).isEnabled)
+
+        val result = executor.execute()
+
+        assertEquals(ActionResult.Failed(ActionFailure.DoNotDisturbModeDisabled), result)
+        // Neither re-enabled nor recreated: same single rule, still disabled, state untouched.
+        assertEquals(1, notificationManager.automaticZenRules.size)
+        assertEquals(ruleId, notificationManager.automaticZenRules.keys.first())
+        assertEquals(false, notificationManager.automaticZenRules.getValue(ruleId).isEnabled)
+        assertEquals(
+            android.service.notification.Condition.STATE_TRUE,
+            notificationManager.getAutomaticZenRuleState(ruleId),
+        )
     }
 
     @Test
