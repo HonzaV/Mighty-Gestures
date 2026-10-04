@@ -123,8 +123,8 @@ not *distinctiveness*. Distinctiveness comes from the validator, the collision c
 the defaults below.
 
 **Collision check** (at confirmation): distance between the new exemplars and every existing rule's exemplars,
-enabled or not. If ≤ `1.2 τ`, the new gesture is rejected as "too similar to ‹name›" (spec 0001 open
-question 6).
+enabled or not. If ≤ `1.2 τ`, the new gesture is rejected as "too similar to ‹name›" (spec 0001 decision 6).
+The exact semantics, including skipped gates, are in "Implementation notes" (2026-10-04).
 
 **Cooldown:** per rule, 1 500 ms after firing (engine, ADR 0004). The segmenter already gives one segment per
 movement; the cooldown guards against a user immediately repeating the gesture by accident.
@@ -182,6 +182,22 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   interleaved; arrival-order sample-and-hold would silently use a stale (or, worse, a
   not-yet-arrived) GYRO value for such a window. The decision above is unchanged: GYRO is still
   held between samples, just keyed correctly.
+- **2026-10-04 (spec 0001 milestone #1 docs pass):** "Collision check" above, made precise to match
+  `MotionMatcher.collidesWith` (verified, read in the code):
+  - Every new exemplar (recording and confirmation) is compared with every existing exemplar passed in.
+    The first pair within `matchThreshold × collisionDistanceMultiplier` (defaults `1.0 × 1.2`) returns `true`.
+  - The distance is the plain normalized DTW distance from "Matcher" step 2. The duration and RMS ratio gates
+    (step 1) are **skipped**. A near-duplicate shape should block creation even at a different tempo or
+    amplitude.
+  - Pairs with a different channel set (gyro on one side only) are skipped and never collide. On a single
+    device every template has the same channel set, so this case does not arise in practice.
+  - The result is a Boolean and does not say which gesture collided. The caller (expected: the create flow,
+    milestone #5) passes each existing rule's exemplars, enabled or not, **one rule at a time**, so the
+    rejection can name that gesture (AC-C6). Milestone #1 has no production caller yet.
+  - Consequence: the preprocessor RMS-normalizes and resamples to N = 64, and the gates are skipped. So a
+    slow or gentle version and a fast or vigorous version of the same shape collide, even though live
+    detection would tell them apart through its gates. This blocks more than live matching would confuse.
+    It is the conservative reading of spec 0001 decision 6.
 
 ## References
 - Motion sensors guide (linear acceleration, high-pass example): https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion
