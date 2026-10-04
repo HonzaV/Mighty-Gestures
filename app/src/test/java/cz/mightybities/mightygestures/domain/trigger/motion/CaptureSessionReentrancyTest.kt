@@ -10,6 +10,7 @@ import cz.mightybities.mightygestures.motion.synthetic.concat
 import cz.mightybities.mightygestures.motion.synthetic.feedTo
 import cz.mightybities.mightygestures.motion.synthetic.stillness
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -79,14 +80,7 @@ class CaptureSessionReentrancyTest {
         // of the same timestamp sequence (gap well under MotionConfig.maxTimestampGapNanos), so
         // MotionPipeline's own unrelated gap-reset can never be the thing putting it back in
         // SETTLING -- only the fix under test can.
-        val movementRightAfter =
-            SensorModel().generate(
-                concat(listOf(GesturePrimitives.chop(PerformerVariation.NONE), stillness(1.5f))),
-                Quaternion.IDENTITY,
-                hasGyro = true,
-                noise = NoiseSource(61),
-                startTimestampNanos = lastFedTimestampNanos + CONTINUATION_GAP_NANOS,
-            )
+        val movementRightAfter = chopThenStill(seed = 61, startNanos = lastFedTimestampNanos + CONTINUATION_GAP_NANOS)
         movementRightAfter.feedTo(session)
 
         assertEquals(
@@ -95,7 +89,30 @@ class CaptureSessionReentrancyTest {
             session.result,
         )
         assertEquals(CaptureStage.CONFIRMING, session.stage)
+
+        // Positive control: after that 1.5 s of quiet the confirm attempt has settled and armed, so the
+        // next movement must reach a verdict. Without this, a session stuck for good would also pass.
+        chopThenStill(seed = 62, startNanos = movementRightAfter.last().timestampNanos + CONTINUATION_GAP_NANOS)
+            .feedTo(session)
+
+        val verdict = session.result
+        assertTrue(
+            "after settling again the confirm attempt must reach a verdict, got $verdict",
+            verdict is CaptureResult.Confirmed || verdict is CaptureResult.NotMatching,
+        )
     }
+
+    /** A chop followed by 1.5 s of quiet, as a continuation of an earlier trace's timestamps. */
+    private fun chopThenStill(
+        seed: Long,
+        startNanos: Long,
+    ) = SensorModel().generate(
+        concat(listOf(GesturePrimitives.chop(PerformerVariation.NONE), stillness(1.5f))),
+        Quaternion.IDENTITY,
+        hasGyro = true,
+        noise = NoiseSource(seed),
+        startTimestampNanos = startNanos,
+    )
 
     private companion object {
         const val CONFIRM_START_CLOCK_NANOS = 5_000_000_000L

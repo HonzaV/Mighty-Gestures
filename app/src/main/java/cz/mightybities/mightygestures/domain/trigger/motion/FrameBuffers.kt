@@ -8,8 +8,9 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  *
  * Implementations (see [FrameLinearBuffer]) reuse their backing arrays across segments (ADR 0008:
  * "DTW only at segment end" — allocating here is fine; the arrays themselves never are). A
- * listener receiving this view must finish reading it before returning: the next segment
- * overwrites the same backing storage.
+ * listener receiving this view must finish reading it before returning, and before calling back
+ * into the pipeline (e.g. `reset()`, which empties it): the next segment overwrites the same
+ * backing storage.
  */
 interface SegmentFrames {
     val length: Int
