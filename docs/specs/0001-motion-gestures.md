@@ -634,7 +634,12 @@ resolved decisions above.
 
     — **Decided: stricter threshold.** ACC-only templates get their own, tighter match threshold, tuned in the
     milestone #3 sweep. If chop/ACC-only still collides with pick-up after tuning, the recorder warns on gyro-less
-    devices that the movement may trigger by accident.
+    devices that the movement may trigger by accident. Milestone #1's orientation sweep found a second ACC-only
+    collision for the same work (2026-10-04, `MotionNegativeRobustnessAndOrientationTest`, `@Ignore`d findings with
+    repro): "rotate to landscape" matches an upright chop/ACC-only template in 6/10 seeds at a realistic ~90° turn
+    (distance ≈ 0.96), and shake/ACC-only only past a realistic turn (≥ ~126°). Milestone #3 must un-ignore both.
+    Also for milestone #3: the generator never applies its declared sensor bias by default, and ±2 ms jitter is
+    exercised only at 50 Hz (larger jitter at 200 Hz reorders timestamps and triggers the rebase reset).
 15. **Validator mean-energy gate vs gentle performers** (milestone #1 finding, 2026-10-04; calibration in
     milestone #3, final answer needs AC-R1). The mean-energy gate (`mean(|lin|²/A_on² + |ω|²/G_on²) ≥ 4`, ADR 0008)
     demands vigorous motion. For every synthetic reference gesture to record at the gentle 0.7× end of the ±30 %
