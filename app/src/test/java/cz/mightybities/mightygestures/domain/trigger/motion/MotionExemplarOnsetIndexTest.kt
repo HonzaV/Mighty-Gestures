@@ -44,6 +44,31 @@ class MotionExemplarOnsetIndexTest {
     }
 
     @Test
+    fun `the constructor rejects an empty exemplar`() {
+        // ExemplarReplay.toSegmentFrames reads tNanos[0] unconditionally; an empty exemplar must
+        // never be constructible in the first place (milestone 1 fix round, item 4).
+        try {
+            MotionExemplar(
+                tNanos = longArrayOf(),
+                accX = floatArrayOf(),
+                accY = floatArrayOf(),
+                accZ = floatArrayOf(),
+                gyroX = floatArrayOf(),
+                gyroY = floatArrayOf(),
+                gyroZ = floatArrayOf(),
+                hasGyro = true,
+                gravityAtStartX = 0f,
+                gravityAtStartY = 0f,
+                gravityAtStartZ = 9.81f,
+                onsetIndex = 0,
+            )
+            org.junit.Assert.fail("expected IllegalArgumentException")
+        } catch (expected: IllegalArgumentException) {
+            // expected
+        }
+    }
+
+    @Test
     fun `the constructor rejects an out-of-range onsetIndex`() {
         try {
             MotionExemplar(

@@ -44,12 +44,15 @@ class MotionExemplar
         val length: Int get() = tNanos.size
 
         init {
+            // ExemplarReplay.toSegmentFrames reads tNanos[0] unconditionally, so an empty exemplar
+            // would fail there instead of here (milestone 1 fix round, item 4).
+            require(tNanos.isNotEmpty()) { "an exemplar must have at least one frame" }
             val arrays = listOf(accX, accY, accZ, gyroX, gyroY, gyroZ)
             require(arrays.all { it.size == tNanos.size }) {
                 "all sample arrays must have the same length as tNanos (${tNanos.size})"
             }
-            require(tNanos.isEmpty() || tNanos[0] == 0L) { "tNanos must be rebased so the first sample is 0" }
-            require(onsetIndex in 0 until maxOf(tNanos.size, 1)) {
+            require(tNanos[0] == 0L) { "tNanos must be rebased so the first sample is 0" }
+            require(onsetIndex in 0 until tNanos.size) {
                 "onsetIndex ($onsetIndex) must be a valid index into a ${tNanos.size}-frame exemplar"
             }
         }
