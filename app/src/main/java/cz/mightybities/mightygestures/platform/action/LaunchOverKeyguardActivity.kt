@@ -2,6 +2,7 @@ package cz.mightybities.mightygestures.platform.action
 
 import android.app.Activity
 import android.app.KeyguardManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -13,10 +14,10 @@ import androidx.activity.ComponentActivity
 enum class KeyguardDismissOutcome { SUCCEEDED, CANCELLED, ERROR }
 
 /**
- * Thin seam over `KeyguardManager.requestDismissKeyguard` (API 23, verified). Robolectric 4.17's
- * `ShadowKeyguardManager` only simulates the "keyguard already not locked" immediate-error path; it has no
- * public way to simulate a user-driven success or cancellation (docs/engineering/testing.md: "wrap the
- * framework call in a thin interface and fake it").
+ * Thin seam over `KeyguardManager.requestDismissKeyguard` (API 23, verified), so
+ * [LaunchOverKeyguardActivity] can be driven by a hand-written fake instead of the real framework callback in
+ * most tests — [AndroidKeyguardDismisserTest] covers the real glue separately (docs/engineering/testing.md:
+ * test isolation, not a Robolectric capability gap).
  */
 interface KeyguardDismisser {
     fun requestDismiss(
@@ -54,10 +55,19 @@ class AndroidKeyguardDismisser : KeyguardDismisser {
  * before the callback was received" (verified, KeyguardManager docs), and `noHistory` could finish this
  * activity while the bouncer still covers it. Instead, every callback path (and a 60 s safety timeout) calls
  * [finishOnce] itself.
+ *
+ * An `ERROR` outcome does not always mean "still locked": `requestDismissKeyguard` also reports it when the
+ * keyguard was already unlocked at call time (code review, PR #4 fix round 2), which races with
+ * [LaunchAppActionExecutor]'s own live check. So `ERROR` re-checks [KeyguardManager.isKeyguardLocked] itself:
+ * unlocked means the race resolved in our favor and the target still opens; locked means a genuine refusal.
  */
 class LaunchOverKeyguardActivity : ComponentActivity() {
     /** Overridable by tests (see class KDoc); defaults to the real framework call in production. */
     internal var keyguardDismisser: KeyguardDismisser = AndroidKeyguardDismisser()
+
+    /** Overridable by tests; defaults to the real framework call in production. */
+    internal var keyguardLockQuery: KeyguardLockQuery =
+        KeyguardLockQuery { getSystemService(KeyguardManager::class.java).isKeyguardLocked }
 
     private var finished = false
     private val handler = Handler(Looper.getMainLooper())
@@ -72,10 +82,7 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
         }
         handler.postDelayed(safetyTimeout, SAFETY_TIMEOUT_MILLIS)
         keyguardDismisser.requestDismiss(this) { outcome ->
-            when (outcome) {
-                KeyguardDismissOutcome.SUCCEEDED -> launchTarget(packageName)
-                KeyguardDismissOutcome.CANCELLED, KeyguardDismissOutcome.ERROR -> finishOnce()
-            }
+            onDismissOutcome(outcome, packageName)
         }
     }
 
@@ -84,10 +91,45 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /**
+     * Test-only: whether the safety timeout is still scheduled. `ShadowPausedMessageQueue.internalGetSize()`
+     * throws on SDK 37 ("size() is not supported ... use Handler.hasMessages or hasCallbacks instead",
+     * verified from the exception message), so tests use this instead of inspecting the looper's queue size.
+     */
+    internal fun hasPendingSafetyTimeout(): Boolean = handler.hasCallbacks(safetyTimeout)
+
+    private fun onDismissOutcome(
+        outcome: KeyguardDismissOutcome,
+        packageName: String,
+    ) {
+        when (outcome) {
+            KeyguardDismissOutcome.SUCCEEDED -> {
+                launchTarget(packageName)
+            }
+
+            KeyguardDismissOutcome.CANCELLED -> {
+                finishOnce()
+            }
+
+            KeyguardDismissOutcome.ERROR -> {
+                if (keyguardLockQuery.isKeyguardLocked()) {
+                    finishOnce()
+                } else {
+                    launchTarget(packageName)
+                }
+            }
+        }
+    }
+
     private fun launchTarget(packageName: String) {
         packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(launchIntent)
+            try {
+                startActivity(launchIntent)
+            } catch (ignored: ActivityNotFoundException) {
+                // The target vanished (e.g. disabled) between LaunchAppActionExecutor's check and here; this
+                // process also hosts the accessibility service, so it must not crash (AC-A3).
+            }
         }
         finishOnce()
     }

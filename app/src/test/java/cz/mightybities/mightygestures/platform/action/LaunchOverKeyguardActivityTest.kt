@@ -1,6 +1,12 @@
 package cz.mightybities.mightygestures.platform.action
 
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.os.Bundle
+import android.os.IBinder
 import android.os.Looper
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -10,10 +16,15 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
+import org.robolectric.shadows.ShadowInstrumentation
 
 /**
- * Exercises the trampoline through a fake [KeyguardDismisser] (see its KDoc): Robolectric's
- * `ShadowKeyguardManager` cannot simulate a user-driven success or cancellation.
+ * Exercises the trampoline through a fake [KeyguardDismisser] (see its KDoc) for test isolation: a fake keeps
+ * each case to the one outcome under test, rather than coaxing it out of `ShadowKeyguardManager`'s shared
+ * static state. `AndroidKeyguardDismisserTest` and the end-to-end tests below cover the real glue separately.
  */
 @RunWith(RobolectricTestRunner::class)
 class LaunchOverKeyguardActivityTest {
@@ -74,7 +85,7 @@ class LaunchOverKeyguardActivityTest {
     }
 
     @Test
-    fun `dismiss error finishes without launching anything`() {
+    fun `dismiss error while the device is actually still locked finishes without launching anything`() {
         val controller =
             Robolectric.buildActivity(
                 LaunchOverKeyguardActivity::class.java,
@@ -82,10 +93,32 @@ class LaunchOverKeyguardActivityTest {
             )
         val activity = controller.get()
         activity.keyguardDismisser = FakeKeyguardDismisser(KeyguardDismissOutcome.ERROR)
+        activity.keyguardLockQuery = KeyguardLockQuery { true }
 
         controller.create()
 
         assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun `dismiss error while the device is actually unlocked still launches the target`() {
+        // requestDismissKeyguard also reports ERROR when the keyguard was already unlocked at call time
+        // (AndroidKeyguardDismisserTest), which races with LaunchAppActionExecutor's own live check: by the
+        // time the bouncer activity runs, the device may have unlocked. ERROR must not always mean "give up".
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        activity.keyguardDismisser = FakeKeyguardDismisser(KeyguardDismissOutcome.ERROR)
+        activity.keyguardLockQuery = KeyguardLockQuery { false }
+
+        controller.create()
+
+        val started = shadowOf(activity).nextStartedActivity
+        assertTrue(started.component?.packageName == context.packageName)
         assertTrue(activity.isFinishing)
     }
 
@@ -147,6 +180,47 @@ class LaunchOverKeyguardActivityTest {
     }
 
     @Test
+    @Config(shadows = [ThrowingStartActivityInstrumentationShadow::class])
+    fun `target vanishing between the check and the launch finishes instead of crashing`() {
+        // LaunchAppActionExecutor only checks installation before starting the trampoline (AC-A3); the
+        // target can still disappear (e.g. disabled) while the bouncer is up, so startActivity itself can
+        // throw ActivityNotFoundException. That must not crash the process that also hosts the accessibility
+        // service.
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        activity.keyguardDismisser = FakeKeyguardDismisser(KeyguardDismissOutcome.SUCCEEDED)
+
+        controller.create()
+
+        assertTrue(activity.isFinishing)
+    }
+
+    /**
+     * Forces `Activity.startActivity`'s real path (`Instrumentation.execStartActivity`) to throw
+     * `ActivityNotFoundException`, standing in for the target vanishing between
+     * `PackageManager.getLaunchIntentForPackage` succeeding and `startActivity` actually running — Robolectric's
+     * real `ShadowInstrumentation` never throws it from here itself (docs/engineering/testing.md).
+     */
+    @Implements(Instrumentation::class)
+    class ThrowingStartActivityInstrumentationShadow : ShadowInstrumentation() {
+        @Suppress("UnusedParameter")
+        @Implementation
+        override fun execStartActivity(
+            who: Context,
+            contextThread: IBinder?,
+            token: IBinder?,
+            target: Activity?,
+            intent: Intent,
+            requestCode: Int,
+            options: Bundle?,
+        ): Instrumentation.ActivityResult = throw ActivityNotFoundException(intent.action)
+    }
+
+    @Test
     fun `onDestroy cancels the safety timeout so it never fires on a gone activity`() {
         val controller =
             Robolectric.buildActivity(
@@ -165,13 +239,11 @@ class LaunchOverKeyguardActivityTest {
                 }
             }
         controller.create()
+        assertTrue(activity.hasPendingSafetyTimeout())
 
         controller.destroy()
-        // Advancing the clock past the 60 s safety timeout must not throw (e.g. a double finish()) now that
-        // the activity is already gone.
-        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(61))
 
-        assertTrue(activity.isFinishing || activity.isDestroyed)
+        assertTrue(!activity.hasPendingSafetyTimeout())
     }
 
     /**
@@ -200,7 +272,10 @@ class LaunchOverKeyguardActivityTest {
     }
 
     @Test
-    fun `end-to-end with the real dismisser launches nothing if the bouncer stays up`() {
+    fun `end-to-end with the real dismisser a repeated locked report cancels the dismiss and launches nothing`() {
+        // ShadowKeyguardManager.setKeyguardLocked(true) while a dismiss is pending reports CANCELLED, not
+        // ERROR (AndroidKeyguardDismisserTest), so this exercises the CANCELLED path end to end, not a
+        // "bouncer stays up forever" scenario — there is no such outcome to simulate via the real dismisser.
         val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
         shadowOf(keyguardManager).setKeyguardLocked(true)
         val controller =
