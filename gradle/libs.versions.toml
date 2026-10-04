@@ -10,6 +10,7 @@ kotlinxCoroutinesTest = "1.11.0"
 robolectric = "4.17"
 espressoCore = "3.7.0"
 jacoco = "0.8.15"
+turbine = "1.2.1"
 spotless = "8.10.3"
 ktlint = "1.8.0"
 detekt = "1.23.8"
@@ -30,6 +31,7 @@ junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesTest" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

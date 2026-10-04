@@ -18,6 +18,12 @@ versioning: [SemVer](https://semver.org/).
   (incl. over the lock screen via the bouncer), flashlight, lock screen, an app-owned Do Not Disturb mode and
   sound mode. New manifest entries: `ACCESS_NOTIFICATION_POLICY` (needed only for the DND / sound-mode
   actions), `<queries>` for launchable apps, and a non-exported lock-screen trampoline activity.
+- Motion detection core for spec 0001 (pure Kotlin; not user-reachable until the sensor adapter, rule engine,
+  gesture UI and accessibility host land): gravity filter, segmenter, preprocessor, DTW template matcher with
+  collision check, template validator, capture session (record/confirm) and the trace CSV format. It is tested
+  against a seeded synthetic motion generator (test code only; no real human traces). Detection thresholds are
+  **provisional**: they are the ADR 0008 initial values and unverified on real human motion (spec 0001 AC-R1).
+  A detekt rule keeps `android.*`/`androidx.*` imports out of `domain`.
 
 ### Changed
 - Builds and tests require JDK 21 (was JDK 17); bytecode still targets Java 17.

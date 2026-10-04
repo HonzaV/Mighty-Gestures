@@ -123,8 +123,8 @@ not *distinctiveness*. Distinctiveness comes from the validator, the collision c
 the defaults below.
 
 **Collision check** (at confirmation): distance between the new exemplars and every existing rule's exemplars,
-enabled or not. If ≤ `1.2 τ`, the new gesture is rejected as "too similar to ‹name›" (spec 0001 open
-question 6).
+enabled or not. If ≤ `1.2 τ`, the new gesture is rejected as "too similar to ‹name›" (spec 0001 decision 6).
+The exact semantics, including skipped gates, are in "Implementation notes" (2026-10-04).
 
 **Cooldown:** per rule, 1 500 ms after firing (engine, ADR 0004). The segmenter already gives one segment per
 movement; the cooldown guards against a user immediately repeating the gesture by accident.
@@ -170,6 +170,40 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   (spec 0001 AC-R1).
   Bump `ALGORITHM_VERSION` on any pipeline change and re-derive stored templates from their raw samples. Track
   a false-positive budget (spec 0001).
+
+## Implementation notes
+
+- **2026-10-03 (spec 0001 PR #1 fix round):** "gyro = latest GYRO sample (sample-and-hold)" above
+  is keyed by **sensor timestamp**, not arrival order. `MotionPipeline` pairs each ACC frame with
+  the GYRO sample whose timestamp is at or before it, buffering an ACC frame briefly if GYRO has
+  not "caught up" yet (bounded by `maxTimestampGapNanos`) rather than falling back to whatever
+  GYRO value happened to arrive first. This matters because a batching delivery path can plausibly
+  present a whole buffered window as "every ACC sample, then every GYRO sample" instead of
+  interleaved; arrival-order sample-and-hold would silently use a stale (or, worse, a
+  not-yet-arrived) GYRO value for such a window. The decision above is unchanged: GYRO is still
+  held between samples, just keyed correctly.
+- **2026-10-04 (spec 0001 milestone #1 docs pass):** "Collision check" above, made precise to match
+  `MotionMatcher.collidesWith` (verified, read in the code):
+  - Every new exemplar passed in (expected: recording and confirmation) is compared with every existing
+    exemplar passed in.
+    The first pair within `matchThreshold × collisionDistanceMultiplier` (defaults `1.0 × 1.2`) returns `true`.
+  - The distance is the plain normalized DTW distance from "Matcher" step 2. The duration and RMS ratio gates
+    (step 1) are **skipped**. A near-duplicate shape should block creation even at a different tempo or
+    amplitude.
+  - Pairs with a different channel set (gyro on one side only) are skipped and never collide. On a single
+    device every template has the same channel set, so this case does not arise in practice.
+  - The result is a Boolean and does not say which gesture collided. The caller (expected: the create flow,
+    milestone #5) passes each existing rule's exemplars, enabled or not, **one rule at a time**, so the
+    rejection can name that gesture (AC-C6). Milestone #1 has no production caller yet.
+  - Consequence: the preprocessor RMS-normalizes and resamples to N = 64, and the gates are skipped. Within
+    the 0.5×–2× gate range, tempo and amplitude variants of one shape would also be confused live, so blocking
+    them is what decision 6 asks for. Beyond 2×, the live gates keep them apart, yet creation is still
+    blocked. The maintainer confirmed that wider block (spec 0001 decision 16, 2026-10-04).
+- **2026-10-04 (GitHub PR #6 review):** DTW breaks equal-cost predecessor ties by path length (longer
+  wins), not by position. A position-based rule picked different-length paths for `d(a, b)` and `d(b, a)`,
+  and the length normalization then made the distance depend on operand order. The distance is now exactly
+  symmetric (property test in `DtwMatcherTest`), so confirmation no longer depends on which movement came
+  first. Distances changed, so `algorithmVersion` is 2. No templates were stored before this.
 
 ## References
 - Motion sensors guide (linear acceleration, high-pass example): https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion
