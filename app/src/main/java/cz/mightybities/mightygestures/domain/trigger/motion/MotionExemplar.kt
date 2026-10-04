@@ -158,5 +158,15 @@ data class MotionTemplate(
     init {
         require(exemplars.isNotEmpty()) { "a template needs at least one exemplar" }
         require(SensorKind.ACC in channels) { "the accelerometer channel is mandatory (ADR 0008)" }
+        // GitHub Copilot PR #6 round-2 finding: channels = {ACC} with a hasGyro = true exemplar
+        // (or a mix of hasGyro / non-hasGyro exemplars) would silently desync the template's
+        // declared channel set from what its own exemplars actually recorded -- MotionMatcher's
+        // gates (ADR 0008 "Matcher") compare on hasGyro per exemplar, not on this field, so such a
+        // template could pass construction yet never match consistently.
+        val gyroChannelDeclared = SensorKind.GYRO in channels
+        require(exemplars.all { it.hasGyro == gyroChannelDeclared }) {
+            "every exemplar's hasGyro must match whether GYRO is in channels " +
+                "(channels declare GYRO=$gyroChannelDeclared, but an exemplar disagrees)"
+        }
     }
 }
