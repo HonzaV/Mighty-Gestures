@@ -5,6 +5,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import cz.mightybities.mightygestures.domain.action.ActionContext
+import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
 import cz.mightybities.mightygestures.domain.model.ActionSpec
 import cz.mightybities.mightygestures.domain.model.RingerMode
@@ -13,6 +14,7 @@ import cz.mightybities.mightygestures.domain.time.AppDispatchers
 import cz.mightybities.mightygestures.platform.access.SpecialAccessChecker
 import cz.mightybities.mightygestures.platform.accessibility.AccessibilityActionHost
 import cz.mightybities.mightygestures.platform.accessibility.AccessibilityHostHandle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -25,6 +27,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowCameraCharacteristics
 
 /** Dispatch tests: each branch's own behavior is covered by that executor's dedicated test. */
@@ -38,13 +42,15 @@ class AndroidActionExecutorTest {
         }
     private val dispatchers = AppDispatchers(main = UnconfinedTestDispatcher())
     private val actionContext = ActionContext(keyguardLocked = false)
+    private val configurationActivity =
+        android.content.ComponentName(context, cz.mightybities.mightygestures.MainActivity::class.java)
 
     private val executor =
         AndroidActionExecutor(
             launchApp = LaunchAppActionExecutor(context),
             toggleTorch = ToggleTorchActionExecutor(context),
             lockScreen = LockScreenActionExecutor(),
-            toggleDoNotDisturb = ToggleDoNotDisturbActionExecutor(context, grantedAccessChecker),
+            toggleDoNotDisturb = ToggleDoNotDisturbActionExecutor(context, grantedAccessChecker, configurationActivity),
             setRingerMode = SetRingerModeActionExecutor(context, grantedAccessChecker),
             dispatchers = dispatchers,
         )
@@ -121,12 +127,18 @@ class AndroidActionExecutorTest {
         }
 
     @Test
-    fun `routes the keyguard-locked context to the trampoline`() =
+    fun `routes to the trampoline when the device is actually locked`() =
         runTest {
+            // LaunchAppActionExecutor routes on the live keyguard state, not the ActionContext snapshot
+            // (code review, PR #4 fix round 2); set the real KeyguardManager's shadow state so the default
+            // AndroidKeyguardLockQuery this dispatcher's executor was built with sees it as locked.
+            val keyguardManager = context.getSystemService(android.app.KeyguardManager::class.java)
+            shadowOf(keyguardManager).setKeyguardLocked(true)
+
             val result =
                 executor.execute(
                     ActionSpec.LaunchApp(context.packageName, "Mighty Gestures"),
-                    ActionContext(keyguardLocked = true),
+                    ActionContext(keyguardLocked = false),
                 )
 
             assertEquals(ActionResult.Success, result)
@@ -135,21 +147,82 @@ class AndroidActionExecutorTest {
         }
 
     /**
-     * DEFECT: the orchestrator's brief for this review states the dispatcher contract explicitly — "an
-     * exception thrown by any executor must become `ActionResult.Failed`, never crash the caller." There is
-     * no such contract written down in ADR 0004 or spec 0001, and `AndroidActionExecutor.execute()` has no
-     * catch-all around its `when` dispatch: it relies entirely on each executor catching its own framework
-     * exceptions. [ToggleTorchActionExecutorTest]'s two defect tests show at least one executor that does not.
-     * This test drives the same failure through the dispatcher to show the caller (the rule engine, in a
-     * later PR) gets an uncaught exception instead of a `Failed` result for a gesture that fires at the wrong
-     * moment — i.e. a crash, not a missed action.
+     * `AndroidActionExecutor.execute()` wraps its dispatch in a catch-all (fix round 1): any sub-executor
+     * exception, even a framework one already known to escape [ToggleTorchActionExecutor] (see
+     * [ToggleTorchActionExecutorTest]), still reaches `Failed`, never the caller, through the dispatcher too.
      */
     @Test
     @Config(shadows = [ToggleTorchActionExecutorTest.DisconnectedCameraManagerShadow::class])
-    fun `AC-A8 defect dispatcher does not convert an executor's uncaught exception to Failed`() =
+    fun `a known executor exception reaches the dispatcher as Failed, not a propagated exception`() =
         runTest {
             val result = executor.execute(ActionSpec.ToggleTorch, actionContext)
 
-            assertTrue("expected a Failed result, not a propagated exception", result is ActionResult.Failed)
+            assertEquals(ActionResult.Failed(ActionFailure.TorchUnavailable), result)
         }
+
+    /**
+     * Code review (PR #4 fix round 2): nothing previously exercised the dispatcher's catch-all with an
+     * exception that is not already mapped to a specific `ActionFailure` by the sub-executor itself — this is
+     * exactly the case `ActionFailure.Unexpected` exists for.
+     */
+    @Test
+    @Config(shadows = [UnexpectedExceptionCameraManagerShadow::class])
+    fun `an unmapped executor exception becomes Failed Unexpected`() =
+        runTest {
+            val result = executor.execute(ActionSpec.ToggleTorch, actionContext)
+
+            assertEquals(ActionResult.Failed(ActionFailure.Unexpected), result)
+        }
+
+    /**
+     * Code review (PR #4 fix round 2): the dispatcher must rethrow `CancellationException` rather than
+     * mapping it to `Failed`, so cooperative cancellation of the caller (the rule engine, a later PR) still
+     * works.
+     */
+    @Test
+    @Config(shadows = [CancellingCameraManagerShadow::class])
+    fun `a CancellationException from an executor propagates instead of becoming Failed`() =
+        runTest {
+            var caught: CancellationException? = null
+
+            try {
+                executor.execute(ActionSpec.ToggleTorch, actionContext)
+            } catch (cancellation: CancellationException) {
+                caught = cancellation
+            }
+
+            assertTrue("expected a CancellationException to propagate", caught != null)
+        }
+
+    /** Throws a plain `IllegalStateException` — not caught by any `ToggleTorchActionExecutor` catch clause. */
+    @Implements(CameraManager::class)
+    class UnexpectedExceptionCameraManagerShadow {
+        @Implementation
+        fun getCameraIdList(): Array<String> = error("camera service in a bad state")
+
+        @Suppress("UnusedParameter")
+        @Implementation
+        fun registerTorchCallback(
+            callback: CameraManager.TorchCallback,
+            handler: android.os.Handler?,
+        ) {
+            // No-op.
+        }
+    }
+
+    /** Throws `kotlinx.coroutines.CancellationException`, standing in for a cancelled caller coroutine. */
+    @Implements(CameraManager::class)
+    class CancellingCameraManagerShadow {
+        @Implementation
+        fun getCameraIdList(): Array<String> = throw CancellationException("cancelled")
+
+        @Suppress("UnusedParameter")
+        @Implementation
+        fun registerTorchCallback(
+            callback: CameraManager.TorchCallback,
+            handler: android.os.Handler?,
+        ) {
+            // No-op.
+        }
+    }
 }
