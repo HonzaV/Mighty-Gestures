@@ -199,6 +199,11 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
     the 0.5×–2× gate range, tempo and amplitude variants of one shape would also be confused live, so blocking
     them is what decision 6 asks for. Beyond 2×, the live gates keep them apart, yet creation is still
     blocked. The maintainer confirmed that wider block (spec 0001 decision 16, 2026-10-04).
+- **2026-10-04 (GitHub PR #6 review):** DTW breaks equal-cost predecessor ties by path length (longer
+  wins), not by position. A position-based rule picked different-length paths for `d(a, b)` and `d(b, a)`,
+  and the length normalization then made the distance depend on operand order. The distance is now exactly
+  symmetric (property test in `DtwMatcherTest`), so confirmation no longer depends on which movement came
+  first. Distances changed, so `algorithmVersion` is 2. No templates were stored before this.
 
 ## References
 - Motion sensors guide (linear acceleration, high-pass example): https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion
