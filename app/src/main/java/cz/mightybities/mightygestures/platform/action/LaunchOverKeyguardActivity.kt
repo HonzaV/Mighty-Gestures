@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.annotation.VisibleForTesting
 
 /** Outcome of a keyguard dismiss request, independent of the framework's callback shape (see [KeyguardDismisser]). */
 enum class KeyguardDismissOutcome { SUCCEEDED, CANCELLED, ERROR }
@@ -66,8 +67,8 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
     internal var keyguardDismisser: KeyguardDismisser = AndroidKeyguardDismisser()
 
     /** Overridable by tests; defaults to the real framework call in production. */
-    internal var keyguardLockQuery: KeyguardLockQuery =
-        KeyguardLockQuery { getSystemService(KeyguardManager::class.java).isKeyguardLocked }
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+    internal var keyguardLockQuery: KeyguardLockQuery = AndroidKeyguardLockQuery(this)
 
     private var finished = false
     private val handler = Handler(Looper.getMainLooper())
@@ -96,6 +97,7 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
      * throws on SDK 37 ("size() is not supported ... use Handler.hasMessages or hasCallbacks instead",
      * verified from the exception message), so tests use this instead of inspecting the looper's queue size.
      */
+    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun hasPendingSafetyTimeout(): Boolean = handler.hasCallbacks(safetyTimeout)
 
     private fun onDismissOutcome(
@@ -129,6 +131,9 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
             } catch (ignored: ActivityNotFoundException) {
                 // The target vanished (e.g. disabled) between LaunchAppActionExecutor's check and here; this
                 // process also hosts the accessibility service, so it must not crash (AC-A3).
+            } catch (ignored: SecurityException) {
+                // A launcher activity guarded by android:permission would refuse us the same way; must not
+                // crash the process that also hosts the accessibility service (security review, PR #4).
             }
         }
         finishOnce()

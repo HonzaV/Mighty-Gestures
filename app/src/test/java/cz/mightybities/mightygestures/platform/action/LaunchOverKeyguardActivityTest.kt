@@ -196,6 +196,7 @@ class LaunchOverKeyguardActivityTest {
 
         controller.create()
 
+        assertNull(shadowOf(activity).nextStartedActivity)
         assertTrue(activity.isFinishing)
     }
 
@@ -218,6 +219,42 @@ class LaunchOverKeyguardActivityTest {
             requestCode: Int,
             options: Bundle?,
         ): Instrumentation.ActivityResult = throw ActivityNotFoundException(intent.action)
+    }
+
+    @Test
+    @Config(shadows = [SecurityExceptionStartActivityInstrumentationShadow::class])
+    fun `a permission-guarded launch target finishes instead of crashing`() {
+        // Security review (PR #4 final polish): a target activity guarded by android:permission refuses
+        // startActivity with SecurityException, not ActivityNotFoundException. Must not crash the process
+        // that also hosts the accessibility service.
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        activity.keyguardDismisser = FakeKeyguardDismisser(KeyguardDismissOutcome.SUCCEEDED)
+
+        controller.create()
+
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
+    /** As [ThrowingStartActivityInstrumentationShadow], but for a permission-guarded target. */
+    @Implements(Instrumentation::class)
+    class SecurityExceptionStartActivityInstrumentationShadow : ShadowInstrumentation() {
+        @Suppress("UnusedParameter")
+        @Implementation
+        override fun execStartActivity(
+            who: Context,
+            contextThread: IBinder?,
+            token: IBinder?,
+            target: Activity?,
+            intent: Intent,
+            requestCode: Int,
+            options: Bundle?,
+        ): Instrumentation.ActivityResult = throw SecurityException("permission denied")
     }
 
     @Test
