@@ -10,11 +10,22 @@ data class MotionMatch<K>(
  * Cheap gates followed by DTW (ADR 0008 "Matcher"): duration and per-group RMS ratios reject gross
  * tempo/amplitude mismatches before the O(frameCount·band) DTW ever runs. Shared by capture
  * confirmation, the collision check and live detection, all with the same τ (AC-M2).
+ *
+ * **Same-thread-only**, like the rest of `domain/trigger/motion` (ADR 0008's `mg-sensors`
+ * `HandlerThread`): [DtwMatcher]'s cost/path-length tables are preallocated and reused across
+ * calls, so two overlapping calls on different threads would corrupt each other's results.
  */
 class MotionMatcher(
     private val config: MotionConfig,
 ) {
     private val dtw = DtwMatcher(config.resampledFrameCount, config.dtwBandFrames)
+
+    // Hoisted out of distance() (milestone 1 fix round, item D18): both ranges are the same on
+    // every call for a given config, so building them per call would allocate on every matcher
+    // invocation -- not the AC-M9 per-sample hot path, but still a call made repeatedly per
+    // segment end (once per exemplar, per rule).
+    private val durationGate = config.durationRatioMin..config.durationRatioMax
+    private val rmsGate = config.rmsRatioMin..config.rmsRatioMax
 
     /**
      * Normalized DTW distance between [live] and [template], or `null` if either gate fails or the
@@ -25,8 +36,6 @@ class MotionMatcher(
         live: ProcessedSegment,
         template: ProcessedSegment,
     ): Float? {
-        val durationGate = config.durationRatioMin..config.durationRatioMax
-        val rmsGate = config.rmsRatioMin..config.rmsRatioMax
         val gatesPass =
             live.hasGyro == template.hasGyro &&
                 live.dim == template.dim &&
