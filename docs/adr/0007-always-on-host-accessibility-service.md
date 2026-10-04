@@ -96,9 +96,10 @@ Settings entry: `Settings.ACTION_ACCESSIBILITY_SETTINGS` (verified; no public pe
 - Positive: one special access, no notification, no FGS permissions, no boot receiver.
 - Negative / accepted trade-offs: users must grant accessibility, and some will not. F-Droid users who sideload
   manually may hit restricted settings. APM users cannot use gestures (inferred). Detection depends on F5.
-- Follow-ups: device verification on an API 35 **and** an API 37 AOSP image plus one real device (spec 0001
-  test plan). README section "Why does Mighty Gestures need Accessibility?" (spec 0001). Revisit if Android
-  restricts non-tool accessibility services beyond APM.
+- Follow-ups: device verification on an API 35 **and** an API 37 image (`mg_api37`; `google_apis` allowed for
+  tests only, spec 0001 decision 13) plus one real device (spec 0001 test plan). README section "Why does
+  Mighty Gestures need Accessibility?" (spec 0001). Revisit if Android restricts non-tool accessibility
+  services beyond APM.
 
 ## References
 - Background sensor limits (Android 9): https://developer.android.com/about/versions/pie/android-9.0-changes-all

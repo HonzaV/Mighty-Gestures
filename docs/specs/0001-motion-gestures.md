@@ -140,8 +140,8 @@ info → ⋮ → Allow restricted settings, then try again." → **Open App info
 | Sound mode | sets mode | same (*inferred*) |
 
 ## Acceptance criteria
-IDs are referenced by tests and reviews. "Device" = verified on emulator AVD `mg_api35` **and** an API 37 AOSP
-image, plus one real device for sensor-dependent ones.
+IDs are referenced by tests and reviews. "Device" = verified on emulator AVD `mg_api35` **and** the API 37 AVD
+`mg_api37` (decision 13), plus one real device for sensor-dependent ones.
 
 **List (L)**
 1. **AC-L1** With no gestures, the list shows the empty state and a "New gesture" action.
@@ -539,8 +539,8 @@ deterministic):
   checker).
 - **Coverage:** keep `:app` ≥ 75 % lines on every PR. Domain ≥ 80 %. The synthetic generator is test code and
   does not count toward coverage.
-- **Device / emulator** (tester, `device-verify` skill): AC-A1/A2/A4, AC-H1–H4, AC-B1 on `mg_api35` and an API 37
-  AOSP image (decision 13) plus one real device. Emulator `adb emu sensor set` is a step input and only
+- **Device / emulator** (tester, `device-verify` skill): AC-A1/A2/A4, AC-H1–H4, AC-B1 on `mg_api35` and the API 37
+  AVD `mg_api37` (decision 13) plus one real device. Emulator `adb emu sensor set` is a step input and only
   verifies wiring (registration, firing on a scripted sequence), not thresholds. On the real device the
   maintainer performs a gesture by hand as a manual smoke check (AC-H2). This is not trace recording; nothing is
   saved beyond the gesture's own template.
@@ -596,8 +596,10 @@ recommendation; #5 differs. The original questions and recommendations are summa
 10. **Haptic confirmation on fire.** — **Not in v1** (no `VIBRATE`).
 11. **New dependencies** (appendix B). — **Approved.**
 12. **Open app on the lock screen** via the bouncer and a non-exported trampoline. — **Approved.**
-13. **Device verification on API 37.** — **Approved.** A separate chore PR adds an AOSP API 37 AVD (`mg_api37`).
-    The maintainer runs AC-H2/AC-A2 on one real phone as manual smoke checks.
+13. **Device verification on API 37.** — **Approved.** A separate chore PR adds an API 37 AVD (`mg_api37`).
+    It prefers an AOSP image; while none is published for API 37, Google's `google_apis` image is allowed as a
+    **test-only** exception (maintainer decision 2026-10-02; never a build or runtime dependency). The maintainer
+    runs AC-H2/AC-A2 on one real phone as manual smoke checks.
 
 ## Implementation order
 One spec, delivered **PR by PR, one branch per milestone**, each branched from up-to-date `main` after the
@@ -608,7 +610,7 @@ the two non-feature PRs.
 
 | # | Branch | PR title | Content | ACs | Owners | Reviewers beyond code-reviewer |
 |---|---|---|---|---|---|---|
-| 0 | `chore/0001-0-api37-emulator` | `chore(harness): add api 37 aosp emulator image` | `mg_api37` in `scripts/setup-android-sdk.sh`, `device-verify` skill, AGENTS.md §6 command table (decision 13). Independent; must merge before #6 | — | developer | — |
+| 0 | `chore/0001-0-api37-emulator` | `chore(harness): add api 37 emulator for targetsdk checks` | `mg_api37` in `scripts/setup-android-sdk.sh`, `device-verify` skill, AGENTS.md §6 command table (decision 13). Independent; must merge before #6 | — | developer | — |
 | 1 | `feat/0001-1-motion-core` | `feat(detector): add motion segmenter and template matcher` | catalog: coroutines-test, turbine; detekt ForbiddenImport; gravity filter, segmenter, preprocessor, DTW matcher, validator, capture session, trace CSV parser; **synthetic generator core** (sensor model, kinematics, a few gesture primitives) for unit, robustness and timing tests; benchmark. Thresholds = ADR 0008 initial values | M1, M2, M5–M8, M9, M10 | developer; tester (test design) | performance-reviewer (hot path) |
 | 2 | `feat/0001-2-rule-engine-store` | `feat(rule): add rule model, engine and gesture store` | ADR 0004 model, `RuleEngine`, `DeviceStateHolder`, DataStore + DTOs + schema fixture + corruption handler, `data_extraction_rules.xml`, `AppContainer`, `MightyGesturesApp`. **Merge only after the AGENTS.md §2 amendment is applied** (decision 1) | L3–L5 (store), H5, H6 (engine), P3 | developer; tester | security-reviewer (template persistence, backup) |
 | 3 | `feat/0001-3-sensor-synthetic-calibration` | `feat(sensor): add sensor adapter and synthetic calibration` | `AndroidMotionSampleSource` (HandlerThread, rates, latency); **full synthetic corpus** (≥ 6 reference gestures × ≥ 10 performer seeds; all negative situations, ≥ 30 min simulated); plausibility tests; calibration sweep on tuning seeds, verification on held-out seeds; `MotionConfig` values + "provisional" KDoc; sweep table in the PR description. **No recorder, no real traces** | M3, M4, M11 (synthetic), P6 | developer (adapter, generator); tester (corpus, calibration, plausibility review) | performance-reviewer (registration, batching) |
