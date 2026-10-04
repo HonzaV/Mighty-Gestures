@@ -636,7 +636,7 @@ resolved decisions above.
     milestone #3 sweep. If chop/ACC-only still collides with pick-up after tuning, the recorder warns on gyro-less
     devices that the movement may trigger by accident. Milestone #1's orientation sweep found a second ACC-only
     collision for the same work (2026-10-04, `MotionNegativeRobustnessAndOrientationTest`, `@Ignore`d findings with
-    repro): "rotate to landscape" matches an upright chop/ACC-only template in 6/10 seeds at a realistic ~90° turn
+    repro): "rotate to landscape" matches an upright chop/ACC-only template in 6–8/10 seeds at a realistic ~90° turn
     (distance ≈ 0.96), and shake/ACC-only only past a realistic turn (≥ ~126°). Milestone #3 must un-ignore both.
     Also for milestone #3: the generator never applies its declared sensor bias by default, and ±2 ms jitter is
     exercised only at 50 Hz (larger jitter at 200 Hz reorders timestamps and triggers the rebase reset).

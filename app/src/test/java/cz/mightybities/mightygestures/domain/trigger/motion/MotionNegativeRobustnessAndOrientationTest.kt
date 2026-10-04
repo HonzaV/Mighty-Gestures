@@ -496,7 +496,9 @@ class MotionNegativeRobustnessAndOrientationTest {
      * - **1.4x (~98 deg, close to a real ~90 deg landscape turn)**: gate-rejected on 4 of 10 seeds,
      *   **matches on the other 6 of 10** -- at the *high* (closest-to-tau) end of the 0.644-0.963
      *   range, around **0.96** (e.g. seed `SEED_ROTATE + 1`: distance 0.961), only about 4% inside
-     *   tau=1.0;
+     *   tau=1.0. A later independent reconstruction (2026-10-04, PR #6 review) found **8 of 10** seeds
+     *   matching at 1.4x (seeds `SEED_ROTATE + 1..8`, 0.959-0.968), identically before and after the
+     *   SensorModel timing fix; the scratch sweep above was never committed, so read "6-8 of 10";
      * - **1.8x-2.6x (~126-182 deg)**: matches on **all 10 of 10** seeds at every level, at
      *   progressively *lower* (more clearly inside tau) distances down to 0.644 as amplitude rises
      *   (e.g. 1.8x, seed `SEED_ROTATE + 2`: distance 0.782).
@@ -526,7 +528,7 @@ class MotionNegativeRobustnessAndOrientationTest {
     @Ignore(
         "FINDING (not fixed, see KDoc): chop/ACC-only collides with 'rotate to landscape' probed at " +
             "90deg-about-X; gate-rejected at 1.0x (~70deg yaw, 0/10 seeds), matches at 1.4x " +
-            "(~98deg, 6/10 seeds) and 1.8x-2.6x (~126-182deg, 10/10 seeds), distances 0.644-0.963 " +
+            "(~98deg, 6-8/10 seeds) and 1.8x-2.6x (~126-182deg, 10/10 seeds), distances 0.644-0.963 " +
             "< tau=1.0 -- report to maintainer/developer, candidate for milestone 3's ACC-only " +
             "threshold work",
     )
