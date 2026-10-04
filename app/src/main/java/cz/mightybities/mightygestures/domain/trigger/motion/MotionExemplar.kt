@@ -11,27 +11,38 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  * zero (which would read the first ~250 ms, [MotionConfig.gravityTimeConstantNanos], as fake
  * linear acceleration).
  *
- * Holds primitive arrays, so [equals]/[hashCode] are overridden to compare contents, not identity.
- * The scalar [gravityAtStartX]/Y/Z fields are compared via [Float.toBits] rather than `==`, to match
- * the semantics [hashCode] already had (`Float.hashCode()` is bit-based) and the array fields' own
- * `contentEquals`/`contentHashCode` (which, like `Arrays.equals(float[], float[])`, distinguish
- * `0f` from `-0f` and treat every `NaN` as equal to itself) — a plain `==` on the scalars would
- * instead follow IEEE 754 (`0f == -0f`, `NaN != NaN`), breaking the equals/hashCode contract for a
- * pair of exemplars differing only in the sign of one gravity-at-start axis.
+ * **Immutable.** [tNanos]/[accX]/[accY]/[accZ]/[gyroX]/[gyroY]/[gyroZ] are read-only `List` views
+ * over private, defensively-copied arrays: the constructor copies every input array before storing
+ * it, so a caller that keeps mutating its own array after construction (or a caller — like
+ * [CaptureSession]'s pending recording — that mutated the exemplar's own arrays by accident) cannot
+ * change this exemplar after the fact. [CaptureResult.Recorded.exemplar] is the pending recording
+ * while [CaptureSession] separately caches that same segment's *processed* (preprocessed/matched)
+ * data; without this guarantee, mutating the returned arrays would make a later
+ * [CaptureResult.Confirmed] report different raw samples than what was actually matched.
+ *
+ * [equals]/[hashCode] compare contents, not identity, via each `List`'s own structural equality —
+ * which, like the `FloatArray.contentEquals`/`contentHashCode` this replaced, compares boxed
+ * `Float`/`Long` elements by value and so already distinguishes `0f` from `-0f` and treats every
+ * `NaN` as equal to itself. The scalar [gravityAtStartX]/Y/Z fields are compared via [Float.toBits]
+ * rather than `==`, to match that same semantics (a plain `==` on the scalars would instead follow
+ * IEEE 754: `0f == -0f`, `NaN != NaN`, breaking the equals/hashCode contract for a pair of exemplars
+ * differing only in the sign of one gravity-at-start axis).
  */
 class MotionExemplar
     // Raw sample container: one array per channel/axis plus the start-gravity vector, so a future
     // re-derivation (ADR 0006) has exactly what it needs. Splitting it into sub-objects would only
-    // move these fields around, not reduce them.
+    // move these fields around, not reduce them. Constructor parameters are deliberately not `val`
+    // here (except the scalars): the properties below are declared explicitly as defensive,
+    // read-only copies of these arrays, under the same public names.
     @Suppress("LongParameterList")
     constructor(
-        val tNanos: LongArray,
-        val accX: FloatArray,
-        val accY: FloatArray,
-        val accZ: FloatArray,
-        val gyroX: FloatArray,
-        val gyroY: FloatArray,
-        val gyroZ: FloatArray,
+        tNanos: LongArray,
+        accX: FloatArray,
+        accY: FloatArray,
+        accZ: FloatArray,
+        gyroX: FloatArray,
+        gyroY: FloatArray,
+        gyroZ: FloatArray,
         val hasGyro: Boolean,
         val gravityAtStartX: Float,
         val gravityAtStartY: Float,
@@ -47,6 +58,16 @@ class MotionExemplar
          */
         val onsetIndex: Int,
     ) {
+        /** Rebased sample timestamps (first sample is 0), one per frame. A read-only view over a
+         * private copy made at construction time (see class KDoc "Immutable"). */
+        val tNanos: List<Long> = tNanos.copyOf().asList()
+        val accX: List<Float> = accX.copyOf().asList()
+        val accY: List<Float> = accY.copyOf().asList()
+        val accZ: List<Float> = accZ.copyOf().asList()
+        val gyroX: List<Float> = gyroX.copyOf().asList()
+        val gyroY: List<Float> = gyroY.copyOf().asList()
+        val gyroZ: List<Float> = gyroZ.copyOf().asList()
+
         val length: Int get() = tNanos.size
 
         init {
@@ -71,23 +92,23 @@ class MotionExemplar
                 gravityAtStartX.toBits() == other.gravityAtStartX.toBits() &&
                 gravityAtStartY.toBits() == other.gravityAtStartY.toBits() &&
                 gravityAtStartZ.toBits() == other.gravityAtStartZ.toBits() &&
-                tNanos.contentEquals(other.tNanos) &&
-                accX.contentEquals(other.accX) &&
-                accY.contentEquals(other.accY) &&
-                accZ.contentEquals(other.accZ) &&
-                gyroX.contentEquals(other.gyroX) &&
-                gyroY.contentEquals(other.gyroY) &&
-                gyroZ.contentEquals(other.gyroZ)
+                tNanos == other.tNanos &&
+                accX == other.accX &&
+                accY == other.accY &&
+                accZ == other.accZ &&
+                gyroX == other.gyroX &&
+                gyroY == other.gyroY &&
+                gyroZ == other.gyroZ
         }
 
         override fun hashCode(): Int {
-            var result = tNanos.contentHashCode()
-            result = 31 * result + accX.contentHashCode()
-            result = 31 * result + accY.contentHashCode()
-            result = 31 * result + accZ.contentHashCode()
-            result = 31 * result + gyroX.contentHashCode()
-            result = 31 * result + gyroY.contentHashCode()
-            result = 31 * result + gyroZ.contentHashCode()
+            var result = tNanos.hashCode()
+            result = 31 * result + accX.hashCode()
+            result = 31 * result + accY.hashCode()
+            result = 31 * result + accZ.hashCode()
+            result = 31 * result + gyroX.hashCode()
+            result = 31 * result + gyroY.hashCode()
+            result = 31 * result + gyroZ.hashCode()
             result = 31 * result + hasGyro.hashCode()
             result = 31 * result + onsetIndex
             result = 31 * result + gravityAtStartX.hashCode()
