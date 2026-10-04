@@ -34,7 +34,7 @@ class AndroidActionExecutor(
         withContext(dispatchers.main) {
             try {
                 when (action) {
-                    is ActionSpec.LaunchApp -> launchApp.execute(action.packageName, context.keyguardLocked)
+                    is ActionSpec.LaunchApp -> launchApp.execute(action.packageName)
                     ActionSpec.ToggleTorch -> toggleTorch.execute()
                     ActionSpec.LockScreen -> lockScreen.execute()
                     ActionSpec.ToggleDoNotDisturb -> toggleDoNotDisturb.execute()
@@ -42,7 +42,7 @@ class AndroidActionExecutor(
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
-            } catch (expected: Exception) {
+            } catch (ignored: Exception) {
                 // No exception detail is kept: a message can contain a package name or other identifying
                 // detail (AGENTS.md §5).
                 ActionResult.Failed(ActionFailure.Unexpected)

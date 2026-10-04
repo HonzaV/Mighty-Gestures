@@ -14,7 +14,13 @@ interface ActionExecutor {
     ): ActionResult
 }
 
-/** State the executor needs to pick behavior (spec 0001, "Per-action behavior on the lock screen"). */
+/**
+ * State the executor needs to pick behavior (spec 0001, "Per-action behavior on the lock screen"). This is
+ * the engine's snapshot taken when the gesture fired; it can be stale by the time an executor actually runs
+ * (ADR 0004). Where staleness matters, an executor re-queries the live platform state itself instead of
+ * trusting this snapshot (e.g. `LaunchAppActionExecutor` and `KeyguardManager.isKeyguardLocked()`, code
+ * review, PR #4 fix round 2).
+ */
 data class ActionContext(
     val keyguardLocked: Boolean,
 )

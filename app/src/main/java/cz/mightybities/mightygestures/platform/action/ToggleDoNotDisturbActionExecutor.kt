@@ -41,7 +41,7 @@ class ToggleDoNotDisturbActionExecutor(
         }
         return try {
             toggleRule()
-        } catch (expected: SecurityException) {
+        } catch (ignored: SecurityException) {
             // Access can also be revoked between the check above and these calls.
             ActionResult.Failed(ActionFailure.MissingAccess(SpecialAccess.NOTIFICATION_POLICY))
         }

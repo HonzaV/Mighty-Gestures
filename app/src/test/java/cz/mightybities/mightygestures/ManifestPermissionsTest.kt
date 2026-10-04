@@ -13,7 +13,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.w3c.dom.Element
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * Reads the merged manifest back through Robolectric's `PackageManager`, rather than re-deriving the same
@@ -75,15 +77,18 @@ class ManifestPermissionsTest {
     fun `the trampoline activity is declared showWhenLocked`() {
         // android:showWhenLocked has no corresponding public ActivityInfo flag (verified: absent from the
         // compileSdk android.jar's ActivityInfo), so PackageManager cannot confirm it; read the manifest
-        // source directly instead (AC-A2).
-        val manifest = File("src/main/AndroidManifest.xml").readText()
-        val trampolineDeclaration =
-            manifest.substringAfter("LaunchOverKeyguardActivity").substringBefore("/>")
+        // source directly instead (AC-A2). Parsed as XML, not substringAfter("LaunchOverKeyguardActivity"):
+        // that would match the class name inside the manifest's own XML *comment* about the trampoline
+        // first, before ever reaching the real <activity> element.
+        val documentBuilderFactory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        val document = documentBuilderFactory.newDocumentBuilder().parse(File("src/main/AndroidManifest.xml"))
+        val activities = document.getElementsByTagName("activity")
+        val trampolineElement =
+            (0 until activities.length)
+                .map { activities.item(it) as Element }
+                .first { it.getAttributeNS(ANDROID_NAMESPACE, "name").endsWith(".LaunchOverKeyguardActivity") }
 
-        assertTrue(
-            "expected android:showWhenLocked=\"true\" on the trampoline <activity>",
-            trampolineDeclaration.contains("""android:showWhenLocked="true""""),
-        )
+        assertEquals("true", trampolineElement.getAttributeNS(ANDROID_NAMESPACE, "showWhenLocked"))
     }
 
     @Test
@@ -101,5 +106,9 @@ class ManifestPermissionsTest {
             )
 
         assertNull(resolved.find { it.activityInfo.name == LaunchOverKeyguardActivity::class.java.name })
+    }
+
+    private companion object {
+        const val ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
     }
 }

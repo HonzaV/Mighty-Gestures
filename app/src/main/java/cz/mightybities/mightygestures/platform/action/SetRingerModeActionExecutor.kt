@@ -46,7 +46,7 @@ class SetRingerModeActionExecutor(
                     RingerMode.SILENT -> AudioManager.RINGER_MODE_SILENT
                 }
             ActionResult.Success
-        } catch (expected: SecurityException) {
+        } catch (ignored: SecurityException) {
             ActionResult.Failed(ActionFailure.MissingAccess(SpecialAccess.NOTIFICATION_POLICY))
         }
 }
