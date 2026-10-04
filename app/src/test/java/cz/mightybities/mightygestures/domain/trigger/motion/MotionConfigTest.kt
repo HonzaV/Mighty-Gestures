@@ -30,6 +30,38 @@ class MotionConfigTest {
         MotionConfig(matchThreshold = 0f)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a preRollNanos that is not below quietDebounceNanos`() {
+        // Underpins Segmenter.handleSettling's safety argument (milestone 1 fix round, item 1):
+        // without this, a pre-roll window could reach back past the last non-quiet SETTLING frame.
+        MotionConfig(preRollNanos = 500_000_000L, quietDebounceNanos = 500_000_000L)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a minActiveDurationNanos that is not below maxActiveDurationNanos`() {
+        MotionConfig(minActiveDurationNanos = 3_000_000_000L, maxActiveDurationNanos = 3_000_000_000L)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a non-positive gravityTimeConstantNanos`() {
+        MotionConfig(gravityTimeConstantNanos = 0L)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a non-positive validatorMinMeanEnergy`() {
+        MotionConfig(validatorMinMeanEnergy = 0f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a durationRatioMin that is not below durationRatioMax`() {
+        MotionConfig(durationRatioMin = 2f, durationRatioMax = 2f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a non-positive collisionDistanceMultiplier`() {
+        MotionConfig(collisionDistanceMultiplier = 0f)
+    }
+
     @Test
     fun `defaults satisfy every invariant`() {
         MotionConfig() // must not throw

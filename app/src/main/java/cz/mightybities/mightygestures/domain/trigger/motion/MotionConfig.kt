@@ -77,12 +77,41 @@ data class MotionConfig(
     val algorithmVersion: Int = 1,
 ) {
     init {
+        require(gravityTimeConstantNanos > 0L) { "gravityTimeConstantNanos must be positive" }
+        require(accOnsetThreshold > 0f) { "accOnsetThreshold must be positive" }
+        require(gyroOnsetThreshold > 0f) { "gyroOnsetThreshold must be positive" }
+        require(accQuietThreshold > 0f) { "accQuietThreshold must be positive" }
+        require(gyroQuietThreshold > 0f) { "gyroQuietThreshold must be positive" }
         require(accQuietThreshold < accOnsetThreshold) { "accQuietThreshold must be < accOnsetThreshold (hysteresis)" }
         require(gyroQuietThreshold < gyroOnsetThreshold) {
             "gyroQuietThreshold must be < gyroOnsetThreshold (hysteresis)"
         }
         require(onsetConfirmFrames >= 1) { "onsetConfirmFrames must be >= 1" }
+        require(quietDebounceNanos > 0L) { "quietDebounceNanos must be positive" }
+        require(preRollNanos > 0L) { "preRollNanos must be positive" }
+        // Underpins Segmenter.handleSettling's safety argument (milestone 1 fix round, item 1): a
+        // pre-roll window can never reach back past the last non-quiet SETTLING frame only because
+        // reaching ARMED always takes at least quietDebounceNanos *after* that frame, which this
+        // inequality guarantees is more than the pre-roll window itself ever reaches back.
+        require(preRollNanos < quietDebounceNanos) { "preRollNanos must be < quietDebounceNanos" }
+        require(minActiveDurationNanos > 0L) { "minActiveDurationNanos must be positive" }
+        require(maxActiveDurationNanos > minActiveDurationNanos) {
+            "maxActiveDurationNanos must be > minActiveDurationNanos"
+        }
+        require(maxTimestampGapNanos > 0L) { "maxTimestampGapNanos must be positive" }
+        require(validatorMinActiveDurationNanos > 0L) { "validatorMinActiveDurationNanos must be positive" }
+        require(validatorPeakAccThreshold > 0f) { "validatorPeakAccThreshold must be positive" }
+        require(validatorPeakGyroThreshold > 0f) { "validatorPeakGyroThreshold must be positive" }
+        require(validatorMinMeanEnergy > 0f) { "validatorMinMeanEnergy must be positive" }
         require(resampledFrameCount > 2 * dtwBandFrames) { "resampledFrameCount must exceed the DTW band" }
+        require(dtwBandFrames > 0) { "dtwBandFrames must be positive" }
+        require(durationRatioMin > 0f) { "durationRatioMin must be positive" }
+        require(durationRatioMin < durationRatioMax) { "durationRatioMin must be < durationRatioMax" }
+        require(rmsRatioMin > 0f) { "rmsRatioMin must be positive" }
+        require(rmsRatioMin < rmsRatioMax) { "rmsRatioMin must be < rmsRatioMax" }
         require(matchThreshold > 0f) { "matchThreshold must be positive" }
+        require(collisionDistanceMultiplier > 0f) { "collisionDistanceMultiplier must be positive" }
+        require(captureNoMovementTimeoutNanos > 0L) { "captureNoMovementTimeoutNanos must be positive" }
+        require(algorithmVersion >= 1) { "algorithmVersion must be >= 1" }
     }
 }
