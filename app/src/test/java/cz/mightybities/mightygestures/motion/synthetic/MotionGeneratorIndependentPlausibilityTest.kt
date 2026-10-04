@@ -98,8 +98,9 @@ class MotionGeneratorIndependentPlausibilityTest {
 
         assertMovedAwayFromStart(measured)
         assertWithinBudget(expected, measured, motionSeconds = phaseSeconds + phaseSeconds, thetaDegreesForLog = null)
-        // Android-convention sign check: X-then-Z, each +90 deg, lands back on +X (see class KDoc
-        // worked example) -- a world-frame composition bug would instead leave it near +Y.
+        // Android-convention sign check: X-then-Z, each +90 deg, lands back on +X (see the
+        // "Independent rotation math" section comment below) -- a world-frame composition bug
+        // would instead leave it near +Y.
         assertTrue("expected measured.x > 0 (gravity back on +X), was $measured", measured.x > 0)
     }
 
@@ -300,7 +301,9 @@ class MotionGeneratorIndependentPlausibilityTest {
     // Independent rotation math (plain trigonometry, no Quaternion): world-to-body for a device
     // that has rotated by thetaRadians about its *own* body X/Y/Z axis (right-hand rule),
     // i.e. the vector is rotated by -thetaRadians using the standard active-rotation matrices.
-    // Derivation and the resulting hard-coded sanity values are in the task notes; summarized:
+    // For a single-axis rotation, standard active-rotation-matrix formulas with angle -theta give,
+    // e.g. about X: v' = (v.x, v.y*cos(theta) + v.z*sin(theta), -v.y*sin(theta) + v.z*cos(theta)).
+    // At theta = 90 deg this reduces to the hard-coded Android-convention sanity checks used above:
     //   +90 deg about X: (0,0,g) -> (0,+g,0)     +90 deg about Y: (0,0,g) -> (-g,0,0)
     //   +90 deg about Z: (0,g,0) -> (+g,0,0)
     // ------------------------------------------------------------------------------------------
