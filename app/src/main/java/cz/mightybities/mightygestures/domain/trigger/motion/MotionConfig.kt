@@ -79,8 +79,13 @@ data class MotionConfig(
     /** **Capture session.** No onset within this long after `startRecording`/`startConfirming` →
      * `NoMovement`. */
     val captureNoMovementTimeoutNanos: Long = 10_000_000_000L,
-    /** Bumped whenever the pipeline changes so stored templates are re-derived (ADR 0008). */
-    val algorithmVersion: Int = 1,
+    /** Bumped whenever the pipeline changes so stored templates are re-derived (ADR 0008).
+     * `2`: [DtwMatcher]'s equal-cost tie-break now picks the longer path instead of a fixed
+     * diag/up/left position, which changes the normalized distance of any pair that happens to hit
+     * an exact cost tie (GitHub Copilot PR #6 round-2 finding; no template is persisted yet in this
+     * milestone, so there is nothing to re-derive, but the version still reflects that the pipeline
+     * changed, per ADR 0008 "Consequences"). */
+    val algorithmVersion: Int = 2,
 ) {
     init {
         require(gravityTimeConstantNanos > 0L) { "gravityTimeConstantNanos must be positive" }
