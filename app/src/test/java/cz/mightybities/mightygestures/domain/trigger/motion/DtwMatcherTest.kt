@@ -1,7 +1,6 @@
 package cz.mightybities.mightygestures.domain.trigger.motion
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
@@ -67,9 +66,13 @@ class DtwMatcherTest {
     @Test
     fun `distance is symmetric at an equal-cost, different-length tie (Copilot round-2 regression)`() {
         for (dim in intArrayOf(6, 3)) {
-            val tie = findEqualCostDifferentLengthTie(dim = dim, frameCount = FRAME_COUNT, bandRadius = BAND_RADIUS)
-            assertNotNull("expected to find an equal-cost/different-length tie for dim=$dim in the seed sweep", tie)
-            val (a, b) = tie!!
+            val tie =
+                checkNotNull(
+                    findEqualCostDifferentLengthTie(dim = dim, frameCount = FRAME_COUNT, bandRadius = BAND_RADIUS),
+                ) {
+                    "expected to find an equal-cost/different-length tie for dim=$dim in the seed sweep"
+                }
+            val (a, b) = tie
 
             // Positive control: the pair actually exercises the bug in the old tie-break, so this
             // test would have failed before the fix (not vacuously passed because no tie exists).
