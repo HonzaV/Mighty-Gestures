@@ -31,6 +31,10 @@ object MotionTraceCsv {
     const val METADATA_SOURCE_KEY = "source"
     const val HEADER = "timestamp_ns,sensor,x,y,z"
 
+    /** The only values [METADATA_SOURCE_KEY] may hold (ADR 0008 "Trace format"): synthetic data
+     * must never be able to pass as a human recording, or vice versa (AC-M11). */
+    val ALLOWED_SOURCES = setOf("synthetic", "device")
+
     fun parse(text: String): MotionTrace {
         val metadata = mutableMapOf<String, String>()
         val samples = mutableListOf<MotionTraceSample>()
@@ -59,6 +63,10 @@ object MotionTraceCsv {
         require(headerSeen) { "trace has no header line" }
         require(metadata.containsKey(METADATA_SOURCE_KEY)) {
             "trace is missing the mandatory \"# source=\" metadata (ADR 0008)"
+        }
+        val source = metadata.getValue(METADATA_SOURCE_KEY)
+        require(source in ALLOWED_SOURCES) {
+            "unknown \"source=$source\"; expected one of $ALLOWED_SOURCES (ADR 0008)"
         }
         return MotionTrace(metadata, samples)
     }

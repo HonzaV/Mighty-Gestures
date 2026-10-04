@@ -43,6 +43,17 @@ class MotionTraceCsvTest {
     }
 
     @Test
+    fun `rejects an unknown source value`() {
+        val text =
+            """
+            # source=human
+            timestamp_ns,sensor,x,y,z
+            0,ACC,0.0,9.81,0.0
+            """.trimIndent()
+        assertThrows(IllegalArgumentException::class.java) { MotionTraceCsv.parse(text) }
+    }
+
+    @Test
     fun `rejects a missing header`() {
         val text =
             """
