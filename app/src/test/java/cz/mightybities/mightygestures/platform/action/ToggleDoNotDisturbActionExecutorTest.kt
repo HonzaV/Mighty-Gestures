@@ -143,6 +143,19 @@ class ToggleDoNotDisturbActionExecutorTest {
     }
 
     @Test
+    fun `removeZenRule with access revoked does not throw`() {
+        // The last Do Not Disturb gesture being deleted must not crash even if notification policy access was
+        // revoked (e.g. in Settings) since the rule was created: removeZenRule() is best-effort.
+        shadowNotificationManager.setNotificationPolicyAccessGranted(true)
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
+        executor.execute()
+        shadowNotificationManager.setNotificationPolicyAccessGranted(false)
+
+        executor.removeZenRule() // must not throw
+    }
+
+    @Test
     fun `rule deleted externally (e g in Settings) is recreated on the next toggle, turned on`() {
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
         val executor =

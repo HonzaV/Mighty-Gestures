@@ -47,9 +47,19 @@ class ToggleDoNotDisturbActionExecutor(
         }
     }
 
-    /** Called when the last Do Not Disturb gesture is deleted (AC-A6); wiring is a later PR's responsibility. */
+    /**
+     * Called when the last Do Not Disturb gesture is deleted (AC-A6); wiring is a later PR's responsibility.
+     * Best-effort and `Unit`, not `Boolean`: deleting a gesture must succeed from the user's point of view even
+     * if cleaning up the zen rule fails, and the caller has no decision to make on a `false`/exception either
+     * way. Access can be revoked (e.g. in Settings) between the gesture being deleted and this running, so both
+     * the lookup and the removal are guarded against [SecurityException] (Copilot review, PR #5).
+     */
     fun removeZenRule() {
-        findRuleId()?.let { notificationManager.removeAutomaticZenRule(it) }
+        try {
+            findRuleId()?.let { notificationManager.removeAutomaticZenRule(it) }
+        } catch (ignored: SecurityException) {
+            // Nothing to clean up without access; the rule (if any) is simply left behind.
+        }
     }
 
     private fun toggleRule(): ActionResult {
