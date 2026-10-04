@@ -22,8 +22,14 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  * separate τ per channel-set is needed on the full corpus. Not a calibration result.
  */
 data class MotionConfig(
-    /** **Gravity filter** (ADR 0008 decision G1). τg: the low-pass time constant. 0.25 s follows
-     * the motion-sensors guide's high-pass example cutoff for gesture-scale motion. */
+    /** **Gravity filter** (ADR 0008 decision G1: gravity removed in Kotlin). τg: the low-pass time
+     * constant, specified as `τg = 0.25 s` in ADR 0008's "Pipeline" section (`FrameBuilder` step).
+     * The motion-sensors guide ADR 0008 cites for the low-pass/high-pass approach itself (see ADR
+     * 0008 References) only gives a demonstration `alpha = 0.8` with no fixed sample rate attached
+     * and explicitly calls that value non-authoritative ("you may need to choose a different alpha
+     * value") — it does not specify a cutoff this τg could be said to "follow". This 0.25 s is ADR
+     * 0008's own initial choice, like every other value in this class (see the class KDoc
+     * "Provisional"), not something derived from the guide's own numbers. */
     val gravityTimeConstantNanos: Long = 250_000_000L,
     /** **Segmenter.** A_on: a frame counts as "active" (onset candidate) once linear acceleration
      * reaches this. */

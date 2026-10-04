@@ -6,7 +6,7 @@ import kotlin.math.ceil
  * The adapter-facing entry point of the motion pipeline (ADR 0008): turns raw
  * [MotionSampleSink.onSample] calls into gravity-removed frames (sample-and-hold for gyroscope) and
  * drives the shared [Segmenter]. One instance is used for exactly one of: recording, confirming, or
- * live detection — never shared across them concurrently — so that [AC-M2] holds trivially: the
+ * live detection — never shared across them concurrently — so that `AC-M2` holds trivially: the
  * same code processes every frame the same way regardless of which of the three it is used for.
  *
  * A timestamp gap larger than [MotionConfig.maxTimestampGapNanos] on the ACC stream, or a

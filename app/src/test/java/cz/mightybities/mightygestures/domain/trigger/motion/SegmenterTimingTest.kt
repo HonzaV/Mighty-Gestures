@@ -19,8 +19,8 @@ import kotlin.math.sin
 /**
  * ADR 0008 segmenter timing (AC-M6, AC-M7): the `SETTLING` debounce, the 500 ms quiet gap that
  * separates two segments, and the 3 s cap that makes continuous motion self-cancel. The 1.5 s
- * per-rule cooldown mentioned alongside these in AC-M6 is [cz.mightybities.mightygestures.domain.engine.RuleEngine]
- * responsibility (ADR 0008 "Cooldown"), not part of this pipeline; it has no engine yet (spec 0001
+ * per-rule cooldown mentioned alongside these in AC-M6 is `RuleEngine`'s responsibility (ADR 0008
+ * "Cooldown"), not part of this pipeline; it has no engine yet (spec 0001
  * milestone 2) and is out of this PR's scope.
  */
 class SegmenterTimingTest {

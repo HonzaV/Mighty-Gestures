@@ -11,7 +11,8 @@ import cz.mightybities.mightygestures.motion.synthetic.stillness
 
 /**
  * Test-only driver: feeds synthetic [MotionSegmentSpec]s through a fresh [MotionPipeline] (exactly
- * the pipeline a live [MotionTriggerSource] or [CaptureSession] would use, ADR 0008) and collects
+ * the pipeline a live `MotionTriggerSource` (spec 0001 milestone 2; not implemented yet) or
+ * [CaptureSession] would use, ADR 0008) and collects
  * every emitted segment as an independent [MotionExemplar]. A segment's backing [SegmentFrames]
  * buffer is reused by the segmenter on the very next sample, so every segment is copied
  * immediately via [MotionExemplar.fromSegment] — this class exists so every test gets that right.
