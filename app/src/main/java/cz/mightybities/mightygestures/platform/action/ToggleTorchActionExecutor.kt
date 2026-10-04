@@ -19,6 +19,11 @@ import java.util.concurrent.ConcurrentHashMap
  * `CameraAccessException` (e.g. a camera-service disconnect); `setTorchMode` additionally throws
  * `IllegalArgumentException` for a cached camera id that has since disappeared. Both are caught: the id is
  * re-resolved exactly once before giving up (AC-A4, no crash).
+ *
+ * **Must be constructed once as a long-lived singleton** (container start, not per `execute()` call): the
+ * torch callback registered in [init] is never unregistered (`CameraManager` has no matching "while this
+ * object is alive" lifecycle to hook), so a new instance per call would register an ever-growing set of
+ * duplicate callbacks on the real `CameraManager`.
  */
 class ToggleTorchActionExecutor(
     context: Context,
@@ -70,10 +75,13 @@ class ToggleTorchActionExecutor(
             torchCameraId = cameraId
             val currentlyOn = torchStates[cameraId] ?: false
             cameraManager.setTorchMode(cameraId, !currentlyOn)
+            // Optimistic: onTorchModeChanged is the source of truth once it arrives, but on a real device it
+            // is asynchronous, so the very next execute() must not read a stale pre-call state.
+            torchStates[cameraId] = !currentlyOn
             ActionResult.Success
-        } catch (expected: CameraAccessException) {
+        } catch (ignored: CameraAccessException) {
             ActionResult.Failed(ActionFailure.TorchUnavailable)
-        } catch (expected: IllegalArgumentException) {
+        } catch (ignored: IllegalArgumentException) {
             torchCameraId = null
             null
         }

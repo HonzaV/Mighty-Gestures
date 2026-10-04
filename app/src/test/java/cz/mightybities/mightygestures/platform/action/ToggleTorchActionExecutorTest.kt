@@ -89,17 +89,14 @@ class ToggleTorchActionExecutorTest {
     }
 
     /**
-     * DEFECT (AC-A4: "`CAMERA_IN_USE` or other `CameraAccessException` -> `Failed(TorchUnavailable)`, no
-     * crash"): `ToggleTorchActionExecutor.findTorchCameraId()` calls `cameraManager.cameraIdList` outside the
-     * `try` block that only wraps `setTorchMode`. `CameraManager.getCameraIdList` is documented to throw
-     * `CameraAccessException` (e.g. on a camera service disconnect), and this test proves that exception is
-     * not caught: it reaches the test as an uncaught exception instead of `executor.execute()` returning
-     * `Failed(TorchUnavailable)`. A gesture firing at that moment would crash the host process instead of
-     * just failing to toggle the torch.
+     * AC-A4: "`CAMERA_IN_USE` or other `CameraAccessException` -> `Failed(TorchUnavailable)`, no crash".
+     * `CameraManager.getCameraIdList` is documented to throw `CameraAccessException` too (e.g. on a camera
+     * service disconnect), not just `setTorchMode`, so `findTorchCameraId()`'s enumeration must be covered by
+     * the same try/catch.
      */
     @Test
     @Config(shadows = [DisconnectedCameraManagerShadow::class])
-    fun `AC-A4 defect camera disconnected while listing cameras crashes instead of failing gracefully`() {
+    fun `a camera service disconnect while listing cameras fails as unavailable, not a crash`() {
         val executor = ToggleTorchActionExecutor(context)
 
         val result = executor.execute()
@@ -108,16 +105,16 @@ class ToggleTorchActionExecutorTest {
     }
 
     /**
-     * DEFECT (AC-A4, same clause as above): the executor caches `torchCameraId` after the first successful
-     * toggle and never re-validates it. If that camera disappears (e.g. unplugged external camera, or a
-     * camera id that becomes invalid across a hot-swap) before the next toggle, `setTorchMode` is documented
-     * to reject an unknown id, and Robolectric's own shadow throws `IllegalArgumentException` for it
-     * (verified by reading `ShadowCameraManager.setTorchMode`'s bytecode: a Guava `Preconditions.checkArgument`
-     * on `cameraIdToCharacteristics.containsKey`). That is not a `CameraAccessException`, so the executor's
-     * `catch` does not see it either.
+     * AC-A4, same clause as above. The cached `torchCameraId` is not re-validated before each `setTorchMode`
+     * call; if that camera disappears (e.g. unplugged external camera, or a camera id invalidated by a
+     * hot-swap), `setTorchMode` rejects the unknown id with `IllegalArgumentException` — Robolectric's own
+     * shadow does too (verified by reading `ShadowCameraManager.setTorchMode`'s bytecode: a Guava
+     * `Preconditions.checkArgument` on `cameraIdToCharacteristics.containsKey`) — which is not a
+     * `CameraAccessException`. With no other camera available, the retry after dropping the stale id also
+     * fails, so the end result is still `Failed(TorchUnavailable)`, not a crash.
      */
     @Test
-    fun `AC-A4 defect torch camera removed after its id was cached crashes on the next toggle`() {
+    fun `a cached camera id that has since disappeared, with no other camera, fails as unavailable`() {
         addTorchCamera("0")
         val executor = ToggleTorchActionExecutor(context)
         val cameraManager = context.getSystemService(CameraManager::class.java)
@@ -127,6 +124,21 @@ class ToggleTorchActionExecutorTest {
         val result = executor.execute()
 
         assertEquals(ActionResult.Failed(ActionFailure.TorchUnavailable), result)
+    }
+
+    @Test
+    fun `a cached camera id that has since disappeared retries once and succeeds on another camera`() {
+        addTorchCamera("0")
+        val executor = ToggleTorchActionExecutor(context)
+        val cameraManager = context.getSystemService(CameraManager::class.java)
+        executor.execute() // caches "0", turns the torch on
+        shadowOf(cameraManager).removeCamera("0")
+        addTorchCamera("1")
+
+        val result = executor.execute()
+
+        assertEquals(ActionResult.Success, result)
+        assertEquals(true, shadowOf(cameraManager).getTorchMode("1"))
     }
 
     /**
