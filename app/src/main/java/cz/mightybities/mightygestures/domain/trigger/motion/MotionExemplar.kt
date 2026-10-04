@@ -149,24 +149,60 @@ class MotionExemplar
  * exemplars recorded during create-gesture (ADR 0008 "A template holds two exemplars").
  * [algorithmVersion] is bumped whenever the pipeline changes, so stored templates can be
  * re-derived from [MotionExemplar.accX]/etc. instead of invalidated (ADR 0008 "Consequences").
+ *
+ * **Immutable.** [exemplars]/[channels] are read-only snapshots taken *before* `init` validates
+ * them, not the caller's own collections: without this, clearing an input `MutableList` after
+ * construction would empty an already-accepted template, and removing `GYRO` from an input
+ * `MutableSet` would desync [channels] from the `hasGyro` invariant [init] already checked against
+ * it (GitHub Copilot PR #6 round-3 finding; mirrors [MotionExemplar]'s own "defensively copy and
+ * expose as read-only" fix). Not a `data class` for the same reason [MotionExemplar] isn't one:
+ * the constructor parameters that back [exemplars]/[channels] are plain parameters, not
+ * properties, so the compiler-generated `equals`/`hashCode`/`copy`/`componentN` this class would
+ * otherwise get are written out by hand below, over the snapshotted properties.
  */
-data class MotionTemplate(
-    val exemplars: List<MotionExemplar>,
-    val channels: Set<SensorKind>,
+class MotionTemplate(
+    exemplars: List<MotionExemplar>,
+    channels: Set<SensorKind>,
     val algorithmVersion: Int,
 ) {
+    /** Read-only snapshot of the constructor's `exemplars`, taken before [init] validates it (see
+     * class KDoc "Immutable"). */
+    val exemplars: List<MotionExemplar> = exemplars.toList()
+
+    /** Read-only snapshot of the constructor's `channels`, taken before [init] validates it (see
+     * class KDoc "Immutable"). */
+    val channels: Set<SensorKind> = channels.toSet()
+
     init {
-        require(exemplars.isNotEmpty()) { "a template needs at least one exemplar" }
-        require(SensorKind.ACC in channels) { "the accelerometer channel is mandatory (ADR 0008)" }
+        require(this.exemplars.isNotEmpty()) { "a template needs at least one exemplar" }
+        require(SensorKind.ACC in this.channels) { "the accelerometer channel is mandatory (ADR 0008)" }
         // GitHub Copilot PR #6 round-2 finding: channels = {ACC} with a hasGyro = true exemplar
         // (or a mix of hasGyro / non-hasGyro exemplars) would silently desync the template's
         // declared channel set from what its own exemplars actually recorded -- MotionMatcher's
         // gates (ADR 0008 "Matcher") compare on hasGyro per exemplar, not on this field, so such a
         // template could pass construction yet never match consistently.
-        val gyroChannelDeclared = SensorKind.GYRO in channels
-        require(exemplars.all { it.hasGyro == gyroChannelDeclared }) {
+        val gyroChannelDeclared = SensorKind.GYRO in this.channels
+        require(this.exemplars.all { it.hasGyro == gyroChannelDeclared }) {
             "every exemplar's hasGyro must match whether GYRO is in channels " +
                 "(channels declare GYRO=$gyroChannelDeclared, but an exemplar disagrees)"
         }
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MotionTemplate) return false
+        return algorithmVersion == other.algorithmVersion &&
+            channels == other.channels &&
+            exemplars == other.exemplars
+    }
+
+    override fun hashCode(): Int {
+        var result = exemplars.hashCode()
+        result = 31 * result + channels.hashCode()
+        result = 31 * result + algorithmVersion
+        return result
+    }
+
+    override fun toString(): String =
+        "MotionTemplate(exemplars=$exemplars, channels=$channels, algorithmVersion=$algorithmVersion)"
 }
