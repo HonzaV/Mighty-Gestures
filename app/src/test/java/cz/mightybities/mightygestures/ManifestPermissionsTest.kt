@@ -96,16 +96,36 @@ class ManifestPermissionsTest {
      * `MainActivityTest` only starts `MainActivity` with an explicit `ComponentName`, so it never proves the
      * manifest's implicit `AUTOMATIC_ZEN_RULE` filter (decision 8, Settings' deep link into the app) actually
      * resolves to it; a removed or misspelled `<intent-filter>` would go unnoticed (Copilot review, PR #5).
+     *
+     * `MATCH_DEFAULT_ONLY` mirrors what an implicit, component-less `startActivity` (what Settings does to
+     * deep-link in) actually requires: the target filter must declare `CATEGORY_DEFAULT`, which plain
+     * `queryIntentActivities(intent, 0)` does not enforce. Two controls (verified empirically against this
+     * manifest, not inferred) rule out a test that would pass no matter what's declared: an action nothing
+     * declares resolves to nothing, and `MainActivity`'s own MAIN/LAUNCHER filter — which has no
+     * `CATEGORY_DEFAULT` — is excluded by the same `MATCH_DEFAULT_ONLY` flag used for the real assertion.
      */
     @Test
     fun `the zen-rule action resolves to MainActivity`() {
+        val defaultOnly = PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong())
         val zenRuleIntent = Intent(NotificationManager.ACTION_AUTOMATIC_ZEN_RULE).setPackage(context.packageName)
 
-        val resolved =
-            context.packageManager.queryIntentActivities(zenRuleIntent, PackageManager.ResolveInfoFlags.of(0))
+        val resolved = context.packageManager.queryIntentActivities(zenRuleIntent, defaultOnly)
 
         assertEquals(1, resolved.size)
         assertEquals(MainActivity::class.java.name, resolved.single().activityInfo.name)
+
+        val unknownActionIntent = Intent("${context.packageName}.NOT_A_REAL_ACTION").setPackage(context.packageName)
+        assertTrue(
+            "an action nothing declares must not resolve to anything",
+            context.packageManager.queryIntentActivities(unknownActionIntent, defaultOnly).isEmpty(),
+        )
+
+        val launcherIntent =
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(context.packageName)
+        assertTrue(
+            "MainActivity's MAIN/LAUNCHER filter has no CATEGORY_DEFAULT, so MATCH_DEFAULT_ONLY must exclude it",
+            context.packageManager.queryIntentActivities(launcherIntent, defaultOnly).isEmpty(),
+        )
     }
 
     @Test
