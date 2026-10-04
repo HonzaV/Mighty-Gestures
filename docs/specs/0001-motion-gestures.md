@@ -401,11 +401,18 @@ trigger/action DTOs and templates as base64 primitive arrays. A schema fixture i
   ignores extras. This filter makes `MainActivity` reachable by one more intent action (decision 8).
   The rule is found again with `getAutomaticZenRules()`, which "Returns AutomaticZenRules owned by the caller"
   (verified, same NotificationManager page), by its condition URI. No ID is persisted. Toggle: `getAutomaticZenRuleState(id)` (API 35, verified) → `setAutomaticZenRuleState(id,
-  Condition(…, STATE_TRUE/FALSE))`.
+  Condition(…, STATE_TRUE/FALSE, SOURCE_USER_ACTION))`.
   **Limitation (platform):** the gesture can only switch *its own* mode. It cannot turn off DND the user turned on
-  manually or through another mode. Also, "the condition change may be ignored if the user has activated or
-  deactivated the rule manually" (verified, `setAutomaticZenRuleState` docs). `addAutomaticZenRule` throws
-  `SecurityException` without policy access (verified).
+  manually or through another mode. The `setAutomaticZenRuleState` docs warn that "the condition change may be
+  ignored if the user has activated or deactivated the rule manually" — that applies when the condition's
+  `source` is `SOURCE_UNKNOWN`, the 3-arg `Condition` constructor's default. We instead build the condition with
+  the 4-arg constructor and `Condition.SOURCE_USER_ACTION`: AOSP's `ZenModeHelper.reconsiderConditionOverride()`
+  (orchestrator-verified against AOSP main,
+  `services/core/java/com/android/server/notification/ZenModeHelper.java`) keeps the user's manual override
+  unless the reporting source is `SOURCE_USER_ACTION` or the condition already agrees with the override, in
+  which case it resets the override instead — a gesture is an explicit user action, so a gesture still toggles
+  the mode even after the user has changed it manually. `addAutomaticZenRule` throws `SecurityException` without
+  policy access (verified).
 - **Sound mode.** `AudioManager.setRingerMode(NORMAL|VIBRATE|SILENT)`. "Ringer mode adjustments that would toggle
   Do Not Disturb are not allowed unless the app has been granted Notification Policy Access" (verified,
   https://developer.android.com/reference/android/media/AudioManager#setRingerMode(int)). Which transitions

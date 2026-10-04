@@ -2,6 +2,7 @@ package cz.mightybities.mightygestures.platform.action
 
 import android.app.NotificationManager
 import android.content.ComponentName
+import android.service.notification.Condition
 import cz.mightybities.mightygestures.MainActivity
 import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
@@ -14,6 +15,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 import org.robolectric.shadows.ShadowNotificationManager
 
 @RunWith(RobolectricTestRunner::class)
@@ -153,6 +157,45 @@ class ToggleDoNotDisturbActionExecutorTest {
         shadowNotificationManager.setNotificationPolicyAccessGranted(false)
 
         executor.removeZenRule() // must not throw
+    }
+
+    @Test
+    @Config(shadows = [ConditionCapturingShadowNotificationManager::class])
+    fun `the condition reported to setAutomaticZenRuleState carries SOURCE_USER_ACTION`() {
+        // See toggleRule()'s KDoc: SOURCE_USER_ACTION is what lets a gesture override a rule the user
+        // previously activated or deactivated manually (AOSP ZenModeHelper.reconsiderConditionOverride).
+        ConditionCapturingShadowNotificationManager.lastCondition = null
+        shadowNotificationManager.setNotificationPolicyAccessGranted(true)
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
+
+        executor.execute()
+
+        val condition = ConditionCapturingShadowNotificationManager.lastCondition
+        assertEquals(Condition.SOURCE_USER_ACTION, condition?.source)
+    }
+
+    /**
+     * Captures the [Condition] passed to `setAutomaticZenRuleState`: the real
+     * [ShadowNotificationManager] only records its `state` field (`getAutomaticZenRuleState`), not `source`
+     * (verified: javap on robolectric 4.17's shadows-framework jar), so this seam extends it the same way
+     * [LaunchOverKeyguardActivityTest]'s `ThrowingStartActivityInstrumentationShadow` extends a shadow for one
+     * method while delegating everything else to the real implementation.
+     */
+    @Implements(NotificationManager::class)
+    class ConditionCapturingShadowNotificationManager : ShadowNotificationManager() {
+        @Implementation
+        override fun setAutomaticZenRuleState(
+            id: String,
+            condition: Condition,
+        ) {
+            lastCondition = condition
+            super.setAutomaticZenRuleState(id, condition)
+        }
+
+        companion object {
+            var lastCondition: Condition? = null
+        }
     }
 
     @Test
