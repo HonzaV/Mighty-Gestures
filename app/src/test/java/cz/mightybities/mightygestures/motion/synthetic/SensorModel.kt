@@ -69,10 +69,19 @@ class SensorModel(
         val dtSeconds = (1.0 / rateHz).toFloat()
         val dtNanos = (NANOS_PER_SECOND / rateHz).toLong()
         var orientation = initialOrientation
-        var t = 0f
-        var nominalTimestamp = startTimestampNanos
+        var sampleIndex = 0L
         val samples = mutableListOf<MotionTraceSample>()
-        while (t < spec.durationSeconds) {
+        while (true) {
+            // GitHub Copilot PR #6 round-3 finding: this used to accumulate the profile-evaluation
+            // time via repeated Float addition ("t += dtSeconds"), which drifts from the integer
+            // sample index over a long trace (a 600 s trace at 200 Hz produced 119,915 frames
+            // instead of 120,000, and 50 Hz produced 2 extra) -- so a late movement could land on a
+            // rate-dependent sample instead of its true nominal time. Deriving t from the sample
+            // index (in Double, cast to Float only once here) ties it exactly to the same integer
+            // arithmetic that already drives nominalTimestamp below, at every rate and trace length.
+            val t = (sampleIndex * dtNanos / NANOS_PER_SECOND).toFloat()
+            if (t >= spec.durationSeconds) break
+            val nominalTimestamp = startTimestampNanos + sampleIndex * dtNanos
             val angularBody = spec.angularBody.at(t)
             val linWorld = spec.linWorld.at(t)
             val accTrue = orientation.rotateWorldToBody(linWorld + GRAVITY_WORLD)
@@ -87,8 +96,7 @@ class SensorModel(
                 samples += MotionTraceSample(SensorKind.ACC, timestamp, acc.x, acc.y, acc.z)
             }
             orientation = orientation.integrate(angularBody, dtSeconds)
-            t += dtSeconds
-            nominalTimestamp += dtNanos
+            sampleIndex++
         }
         finalOrientation?.invoke(orientation)
         return samples
