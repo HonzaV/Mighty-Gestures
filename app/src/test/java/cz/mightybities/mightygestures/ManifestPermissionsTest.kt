@@ -1,5 +1,6 @@
 package cz.mightybities.mightygestures
 
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -89,6 +90,22 @@ class ManifestPermissionsTest {
                 .first { it.getAttributeNS(ANDROID_NAMESPACE, "name").endsWith(".LaunchOverKeyguardActivity") }
 
         assertEquals("true", trampolineElement.getAttributeNS(ANDROID_NAMESPACE, "showWhenLocked"))
+    }
+
+    /**
+     * `MainActivityTest` only starts `MainActivity` with an explicit `ComponentName`, so it never proves the
+     * manifest's implicit `AUTOMATIC_ZEN_RULE` filter (decision 8, Settings' deep link into the app) actually
+     * resolves to it; a removed or misspelled `<intent-filter>` would go unnoticed (Copilot review, PR #5).
+     */
+    @Test
+    fun `the zen-rule action resolves to MainActivity`() {
+        val zenRuleIntent = Intent(NotificationManager.ACTION_AUTOMATIC_ZEN_RULE).setPackage(context.packageName)
+
+        val resolved =
+            context.packageManager.queryIntentActivities(zenRuleIntent, PackageManager.ResolveInfoFlags.of(0))
+
+        assertEquals(1, resolved.size)
+        assertEquals(MainActivity::class.java.name, resolved.single().activityInfo.name)
     }
 
     @Test
