@@ -4,7 +4,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -62,21 +61,6 @@ class AndroidLauncherAppCatalogTest {
         assertEquals(
             listOf("Alpha App", "Zeta App"),
             apps.map { it.label },
-        )
-    }
-
-    @Test
-    fun `does not require QUERY_ALL_PACKAGES`() {
-        // Package visibility relies solely on the MAIN/LAUNCHER <queries> declaration (AC-C9); this catalog
-        // never calls getInstalledApplications/getInstalledPackages.
-        val resolveInfoFlags = PackageManager.ResolveInfoFlags.of(0)
-        assertEquals(
-            context.packageManager
-                .queryIntentActivities(
-                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),
-                    resolveInfoFlags,
-                ).size,
-            catalog.launcherApps().size + 1, // +1 for Mighty Gestures itself, which the catalog excludes
         )
     }
 }

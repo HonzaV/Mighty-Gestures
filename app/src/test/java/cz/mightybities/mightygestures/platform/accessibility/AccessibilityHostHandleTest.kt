@@ -1,5 +1,6 @@
 package cz.mightybities.mightygestures.platform.accessibility
 
+import org.junit.After
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -10,6 +11,13 @@ class AccessibilityHostHandleTest {
             override fun performGlobalAction(globalAction: Int) = true
         }
 
+    @After
+    fun tearDown() {
+        // AccessibilityHostHandle is a process-wide singleton; a test that forgot to clear it would leak
+        // into whichever test runs next.
+        AccessibilityHostHandle.host?.let { AccessibilityHostHandle.clear(it) }
+    }
+
     @Test
     fun `publish makes the host readable`() {
         val host = fakeHost()
@@ -17,7 +25,6 @@ class AccessibilityHostHandleTest {
         AccessibilityHostHandle.publish(host)
 
         assertSame(host, AccessibilityHostHandle.host)
-        AccessibilityHostHandle.clear(host)
     }
 
     @Test
@@ -42,7 +49,6 @@ class AccessibilityHostHandleTest {
         AccessibilityHostHandle.clear(oldHost)
 
         assertSame(newHost, AccessibilityHostHandle.host)
-        AccessibilityHostHandle.clear(newHost)
     }
 
     @Test

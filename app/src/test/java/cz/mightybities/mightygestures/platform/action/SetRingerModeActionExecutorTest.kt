@@ -78,17 +78,15 @@ class SetRingerModeActionExecutorTest {
     }
 
     /**
-     * DEFECT (AC-A7: "Without access -> `Failed(MissingAccess)`"). `AudioManager#setRingerMode` documents
-     * that "Ringer mode adjustments that would toggle Do Not Disturb are not allowed unless the app has been
+     * AC-A7: "Without access -> `Failed(MissingAccess)`". `AudioManager#setRingerMode` documents that
+     * "Ringer mode adjustments that would toggle Do Not Disturb are not allowed unless the app has been
      * granted Notification Policy Access" — i.e. the framework itself can refuse with a `SecurityException`
-     * for a transition that touches DND, independent of our own `SpecialAccessChecker` check a moment
-     * earlier (the same revoke-between-check-and-call race `ToggleDoNotDisturbActionExecutor` already guards
-     * against). `SetRingerModeActionExecutor.execute()` has no such guard: this test shows the exception
-     * reaches the caller uncaught instead of `Failed(MissingAccess(NOTIFICATION_POLICY))`.
+     * for a transition that touches DND, independent of our own `SpecialAccessChecker` check a moment earlier
+     * (the same revoke-between-check-and-call race `ToggleDoNotDisturbActionExecutor` guards against too).
      */
     @Test
     @Config(shadows = [SecurityExceptionAudioManagerShadow::class])
-    fun `AC-A7 defect notification policy access revoked between the check and the call crashes`() {
+    fun `notification policy access revoked between the check and the call fails instead of crashing`() {
         val executor = SetRingerModeActionExecutor(context, FakeSpecialAccessChecker(granted = true))
 
         val result = executor.execute(RingerMode.SILENT)
