@@ -166,11 +166,19 @@ class CaptureSessionTest {
     @Test
     fun `confirming a matching repeat succeeds (AC-C5 positive)`() {
         val session = newSession()
-        record(session, GesturePrimitives.chop(PerformerVariation.NONE), seed = 20)
-        assertTrue(session.result is CaptureResult.Recorded)
         // Item C10 precedent (GestureRecordabilityTest, MotionFalsePositiveCorpusTest): a sampled
         // variation's grip tilt must actually be applied to the trace it is rendered with, not
-        // discarded in favor of a hard-coded Quaternion.IDENTITY orientation.
+        // discarded in favor of a hard-coded Quaternion.IDENTITY orientation. Tilted on *both*
+        // passes (tester task item 4): the user grips the phone somehow while recording too, not
+        // just while confirming.
+        val recordVariation = PerformerVariation.sample(NoiseSource(20))
+        record(
+            session,
+            GesturePrimitives.chop(recordVariation),
+            seed = 20,
+            orientation = recordVariation.initialOrientation(),
+        )
+        assertTrue(session.result is CaptureResult.Recorded)
         val confirmVariation = PerformerVariation.sample(NoiseSource(21))
         confirm(
             session,
@@ -221,7 +229,15 @@ class CaptureSessionTest {
     @Test
     fun `ACC-only record and confirm match without a gyroscope (AC-M10)`() {
         val session = newSession(hasGyro = false)
-        record(session, GesturePrimitives.shake(PerformerVariation.NONE), seed = 50, hasGyro = false)
+        // Tilted on both passes (tester task item 4), same rationale as the AC-C5 positive test above.
+        val recordVariation = PerformerVariation.sample(NoiseSource(50))
+        record(
+            session,
+            GesturePrimitives.shake(recordVariation),
+            seed = 50,
+            hasGyro = false,
+            orientation = recordVariation.initialOrientation(),
+        )
         assertTrue(session.result is CaptureResult.Recorded)
         val confirmVariation = PerformerVariation.sample(NoiseSource(51))
         confirm(
@@ -239,9 +255,11 @@ class CaptureSessionTest {
         gesture: MotionSegmentSpec,
         seed: Long,
         hasGyro: Boolean = true,
-        // Defaults to identity: every record() call site uses PerformerVariation.NONE (zero
-        // tilt), the "reference performance" (PerformerVariation.NONE's own KDoc), matching the
-        // MotionFalsePositiveCorpusTest precedent of recording the template tilt-free.
+        // Defaults to identity for call sites that use PerformerVariation.NONE (zero tilt), the
+        // "reference performance" (PerformerVariation.NONE's own KDoc), matching the
+        // MotionFalsePositiveCorpusTest precedent of recording the template tilt-free. Call sites
+        // that sample a variation instead (tester task item 4) pass its initialOrientation() here,
+        // since the user grips the phone somehow while recording too, not just while confirming.
         orientation: Quaternion = Quaternion.IDENTITY,
     ) {
         session.startRecording(nowNanos = 0L)
