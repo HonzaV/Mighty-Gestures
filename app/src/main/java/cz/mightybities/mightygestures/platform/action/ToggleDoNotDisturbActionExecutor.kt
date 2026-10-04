@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.service.notification.Condition
-import cz.mightybities.mightygestures.MainActivity
 import cz.mightybities.mightygestures.R
 import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
@@ -21,10 +20,15 @@ import cz.mightybities.mightygestures.platform.access.SpecialAccessChecker
  *
  * `zenPolicy = null` is *inferred* to mean "the user's default Do Not Disturb policy"; unverified on a device
  * (spec 0001 AC-A6 is a non-device acceptance criterion in this PR).
+ *
+ * [configurationActivity] is injected (`MainActivity`'s `ComponentName`, by whoever wires this executor)
+ * rather than referenced by class here, so `platform/action` does not import an app-level `ui`/top-level
+ * activity class (code review, PR #4 fix round 2).
  */
 class ToggleDoNotDisturbActionExecutor(
     private val context: Context,
     private val specialAccessChecker: SpecialAccessChecker,
+    private val configurationActivity: ComponentName,
 ) {
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
     private val conditionId: android.net.Uri by lazy {
@@ -65,7 +69,7 @@ class ToggleDoNotDisturbActionExecutor(
         AutomaticZenRule(
             ruleName,
             null,
-            ComponentName(context, MainActivity::class.java),
+            configurationActivity,
             conditionId,
             null,
             NotificationManager.INTERRUPTION_FILTER_PRIORITY,

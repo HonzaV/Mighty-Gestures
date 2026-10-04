@@ -1,6 +1,8 @@
 package cz.mightybities.mightygestures.platform.action
 
 import android.app.NotificationManager
+import android.content.ComponentName
+import cz.mightybities.mightygestures.MainActivity
 import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
 import cz.mightybities.mightygestures.domain.model.SpecialAccess
@@ -19,6 +21,7 @@ class ToggleDoNotDisturbActionExecutorTest {
     private val context = RuntimeEnvironment.getApplication()
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
     private val shadowNotificationManager: ShadowNotificationManager = shadowOf(notificationManager)
+    private val configurationActivity = ComponentName(context, MainActivity::class.java)
 
     private class FakeSpecialAccessChecker(
         private val granted: Boolean,
@@ -28,7 +31,8 @@ class ToggleDoNotDisturbActionExecutorTest {
 
     @Test
     fun `without notification policy access fails instead of crashing`() {
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = false))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = false), configurationActivity)
 
         val result = executor.execute()
 
@@ -41,7 +45,8 @@ class ToggleDoNotDisturbActionExecutorTest {
     @Test
     fun `first run creates and turns on the Mighty Gestures zen rule`() {
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
 
         val result = executor.execute()
 
@@ -60,7 +65,8 @@ class ToggleDoNotDisturbActionExecutorTest {
     @Test
     fun `toggles the existing rule off then on again`() {
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
 
         executor.execute() // off -> on
         executor.execute() // on -> off
@@ -77,7 +83,8 @@ class ToggleDoNotDisturbActionExecutorTest {
     @Test
     fun `removeZenRule removes a previously created rule`() {
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
         executor.execute()
         assertEquals(1, notificationManager.automaticZenRules.size)
 
@@ -93,16 +100,14 @@ class ToggleDoNotDisturbActionExecutorTest {
         // app. A test asserting only `rule.name` and the toggled state (as this file did before) would still
         // pass if the rule used the wrong filter or no configuration activity at all.
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
 
         executor.execute()
 
         val rule = notificationManager.automaticZenRules.values.first()
         assertEquals(android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY, rule.interruptionFilter)
-        assertEquals(
-            android.content.ComponentName(context, cz.mightybities.mightygestures.MainActivity::class.java),
-            rule.configurationActivity,
-        )
+        assertEquals(configurationActivity, rule.configurationActivity)
         assertTrue(rule.isEnabled)
     }
 
@@ -112,7 +117,8 @@ class ToggleDoNotDisturbActionExecutorTest {
         // enforces the same access for reads), but deny it through the checker so the code under test must be
         // the one skipping the call.
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = false))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = false), configurationActivity)
 
         executor.execute()
 
@@ -125,7 +131,8 @@ class ToggleDoNotDisturbActionExecutorTest {
         // user revoked policy access in Settings a moment earlier) says otherwise: toggleRule() must still
         // report MissingAccess, not let the SecurityException escape.
         shadowNotificationManager.setNotificationPolicyAccessGranted(false)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
 
         val result = executor.execute()
 
@@ -138,7 +145,8 @@ class ToggleDoNotDisturbActionExecutorTest {
     @Test
     fun `rule deleted externally (e g in Settings) is recreated on the next toggle, turned on`() {
         shadowNotificationManager.setNotificationPolicyAccessGranted(true)
-        val executor = ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true))
+        val executor =
+            ToggleDoNotDisturbActionExecutor(context, FakeSpecialAccessChecker(granted = true), configurationActivity)
         executor.execute() // creates the rule, turns it on
         val originalRuleId = notificationManager.automaticZenRules.keys.first()
 
