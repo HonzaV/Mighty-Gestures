@@ -29,7 +29,7 @@ Build v1 only, but never paint v2/v3 into a corner: see the trigger → action m
    Direct references are blocked by `scripts/check-no-gms.sh` (also run as an agent hook); transitive ones are
    caught by `scripts/check-no-gms.sh --classpath` inside `scripts/verify.sh`. Never bypass or weaken either.
 2. **Privacy by construction.** No `INTERNET` permission, no telemetry, no network calls. Sensor data never
-   leaves the device and is never persisted except in explicit, user-initiated debug recordings.
+   leaves the device and is never persisted except in explicit scenarios for gesture storage.
    Adding any network capability requires an approved ADR.
 3. **F-Droid-ready at all times.** FOSS-only dependencies (license compatible with AGPL-3.0), reproducible
    builds, no dependency-metadata blob. Details: `docs/engineering/f-droid.md`.
@@ -49,9 +49,7 @@ Build v1 only, but never paint v2/v3 into a corner: see the trigger → action m
 | Formatting / static analysis | Spotless + ktlint (`.editorconfig`), detekt, Android Lint (warnings as errors for new code). |
 | Testing | JUnit 4, kotlinx-coroutines-test, Turbine, Robolectric, Compose UI test. Details: `docs/engineering/testing.md`. |
 
-Decisions that are **still open** and must be settled by an ADR from the architect before code depends on them:
-module layout, DI approach, persistence (DataStore vs Room), foreground-service
-type for always-on sensing, gesture-detection approach. Open/accepted ADRs live in `docs/adr/`.
+Open/accepted ADRs live in `docs/adr/`.
 
 ## 4. Architecture principles
 
