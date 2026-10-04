@@ -184,7 +184,7 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   held between samples, just keyed correctly.
 - **2026-10-04 (spec 0001 milestone #1 docs pass):** "Collision check" above, made precise to match
   `MotionMatcher.collidesWith` (verified, read in the code):
-  - Every new exemplar (recording and confirmation) is compared with every existing exemplar passed in.
+  - Every new exemplar passed in (expected: recording and confirmation) is compared with every existing exemplar passed in.
     The first pair within `matchThreshold × collisionDistanceMultiplier` (defaults `1.0 × 1.2`) returns `true`.
   - The distance is the plain normalized DTW distance from "Matcher" step 2. The duration and RMS ratio gates
     (step 1) are **skipped**. A near-duplicate shape should block creation even at a different tempo or
@@ -194,10 +194,10 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   - The result is a Boolean and does not say which gesture collided. The caller (expected: the create flow,
     milestone #5) passes each existing rule's exemplars, enabled or not, **one rule at a time**, so the
     rejection can name that gesture (AC-C6). Milestone #1 has no production caller yet.
-  - Consequence: the preprocessor RMS-normalizes and resamples to N = 64, and the gates are skipped. So a
-    slow or gentle version and a fast or vigorous version of the same shape collide, even though live
-    detection would tell them apart through its gates. This blocks more than live matching would confuse.
-    It is the conservative reading of spec 0001 decision 6.
+  - Consequence: the preprocessor RMS-normalizes and resamples to N = 64, and the gates are skipped. Within
+    the 0.5×–2× gate range, tempo and amplitude variants of one shape would also be confused live, so blocking
+    them is what decision 6 asks for. Beyond 2×, the live gates keep them apart, yet creation is still
+    blocked. Whether that wider block is wanted is not yet confirmed by the maintainer.
 
 ## References
 - Motion sensors guide (linear acceleration, high-pass example): https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion
