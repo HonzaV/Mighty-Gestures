@@ -35,11 +35,25 @@ class MotionPipelineGapAndOrderingTest {
             Segmenter.State.SETTLING, // one sample alone isn't enough quiet time to leave SETTLING anyway
             pipeline.state,
         )
-        // Confirm indirectly that no reset happened: feed enough quiet samples to reach ARMED and
-        // check the *total* elapsed quiet counts the full span, not just time since a reset.
+        // Confirm indirectly that no reset happened: feed only just enough quiet afterwards to
+        // discriminate the two paths, not a generous excess that reaches ARMED either way.
+        // Correct (no reset): the exact-gap sample above already contributed maxTimestampGapNanos
+        // (200ms) of quiet, so only quietDebounceNanos - maxTimestampGapNanos (300ms) more is needed
+        // to reach ARMED (500ms total). Wrong ('>' -> '>=' regression): that sample would instead
+        // have reset quietAccumNanos to 0, needing the full quietDebounceNanos (500ms) on its own.
+        // Feeding frameIntervalNanos * framesToFeed quiet beyond the gap, with a margin on both
+        // sides (not pinned to either boundary), reaches ARMED on the correct path (600ms total) and
+        // stays SETTLING on the wrong one (400ms total).
+        val frameIntervalNanos = 20_000_000L
+        val marginFrames = 5 // ~100ms of slack on each side so this isn't pinned to either boundary
+        val quietNeededAfterGapNanos = config.quietDebounceNanos - config.maxTimestampGapNanos
+        check(quietNeededAfterGapNanos % frameIntervalNanos == 0L) {
+            "test assumes quietDebounceNanos - maxTimestampGapNanos divides evenly by frameIntervalNanos"
+        }
+        val framesToFeed = (quietNeededAfterGapNanos / frameIntervalNanos).toInt() + marginFrames
         var t = config.maxTimestampGapNanos
-        repeat(30) {
-            t += 20_000_000L
+        repeat(framesToFeed) {
+            t += frameIntervalNanos
             pipeline.onSample(SensorKind.ACC, t, 0f, 0f, 9.81f)
         }
         assertEquals(Segmenter.State.ARMED, pipeline.state)
