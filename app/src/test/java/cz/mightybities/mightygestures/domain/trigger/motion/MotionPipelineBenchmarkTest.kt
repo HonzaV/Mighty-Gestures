@@ -46,7 +46,7 @@ class MotionPipelineBenchmarkTest {
     fun `onSample allocates nothing on a mostly-quiet steady state`() {
         val trace = renderStillnessTrace()
         val pipeline = MotionPipeline(config, hasGyro = true) { /* no-op */ }
-        feedTwice(pipeline, trace)
+        warmUp(pipeline, trace)
 
         val measurement = measureOnSample(pipeline, trace)
         measurement.reportAndAssertZeroAllocation("stillness", trace.size)
@@ -59,7 +59,7 @@ class MotionPipelineBenchmarkTest {
         var tooLongCount = 0
         val pipeline = MotionPipeline(config, hasGyro = true) { segmentCount++ }
         pipeline.discardListener = { reason -> if (reason == Segmenter.DiscardReason.TOO_LONG) tooLongCount++ }
-        feedTwice(pipeline, trace)
+        warmUp(pipeline, trace, repeats = SHORT_TRACE_WARM_UP_REPEATS)
 
         // Reset after warm-up: only the measured pass below should count.
         segmentCount = 0
@@ -90,7 +90,7 @@ class MotionPipelineBenchmarkTest {
 
         var segmentCount = 0
         val pipeline = MotionPipeline(config, hasGyro = true) { segmentCount++ }
-        feedTwice(pipeline, built.samples)
+        warmUp(pipeline, built.samples, repeats = SHORT_TRACE_WARM_UP_REPEATS)
 
         segmentCount = 0
         val measurement = measureOnSample(pipeline, built.samples)
@@ -189,11 +189,19 @@ class MotionPipelineBenchmarkTest {
         return preprocessor.process(recorded.segments[0], config)
     }
 
-    private fun feedTwice(
+    /** Warms up the JIT by feeding [trace] through [pipeline] [repeats] times. The two short
+     * traces below (a few hundred samples) need far more than the stillness trace's default 2
+     * passes to reliably reach steady-state JIT compilation: run under the full suite (many other
+     * test classes' code competing for the JIT compiler threads, not just this one in isolation),
+     * too few warm-up invocations were observed to leave a measured pass with a real, small
+     * allocation -- a JIT-state flake, not a product regression (every allocation-sensitive path
+     * here already passes its own much longer-warmed-up stillness counterpart). */
+    private fun warmUp(
         pipeline: MotionPipeline,
         trace: List<MotionTraceSample>,
+        repeats: Int = 2,
     ) {
-        repeat(2) {
+        repeat(repeats) {
             pipeline.reset()
             for (sample in trace) {
                 pipeline.onSample(sample.kind, sample.timestampNanos, sample.x, sample.y, sample.z)
@@ -308,6 +316,7 @@ class MotionPipelineBenchmarkTest {
         const val GYRO_LAG_WINDOW_NANOS = 100_000_000L
         const val GYRO_DROP_WINDOW_OFFSET_NANOS = 500_000_000L
         const val GYRO_DROP_WINDOW_DURATION_NANOS = 300_000_000L // > MotionConfig.maxTimestampGapNanos (200ms)
+        const val SHORT_TRACE_WARM_UP_REPEATS = 50
         const val RULE_COUNT = 50
         const val BENCHMARK_ITERATIONS = 200
         const val LOOSE_BUDGET_MICROS = 20_000.0 // 20 ms; ADR budget is 2 ms, this is a 10x margin.
