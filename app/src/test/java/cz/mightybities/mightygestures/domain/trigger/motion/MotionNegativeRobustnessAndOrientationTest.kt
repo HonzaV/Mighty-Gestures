@@ -59,7 +59,14 @@ import org.junit.Test
  * reaches DTW and misses, distance ~1.65-1.72 against tau=1.0); every negative *other* than that
  * extra probe is still gate-rejected against `chop`/ACC-only in the disturbance sweep, same as
  * `shake`/6-D. `chop`/6-D, `twist`/6-D and `shake`/ACC-only all reach DTW against the unmodified
- * shared corpus.
+ * shared corpus -- but only via `pickup from table` and `put down on table`: `tilt to read`,
+ * `rotate to landscape` and the walking/pocket situations never reach DTW, against any template,
+ * at the shared corpus's amplitudes, at the shared identity orientation. The same-orientation AC-M5
+ * negative coverage in this file therefore rests entirely on those two situations (plus the one
+ * extra `chop`/ACC-only probe above); the rest are correct no-fires by never segmenting into
+ * something gate-comparable to these templates, not by the matcher distinguishing them. The
+ * cross-orientation sweep (above) does not track `reachedDtw` at all, so its coverage is
+ * uncharacterized the same way, and it omits `twist`/6-D and `shake`/6-D entirely.
  */
 class MotionNegativeRobustnessAndOrientationTest {
     private val config = MotionConfig()
@@ -455,8 +462,14 @@ class MotionNegativeRobustnessAndOrientationTest {
     fun `chop ACC-only, cross-orientation -- no match except pickup and the known collision`() {
         // Excludes exactly one cell: "rotate to landscape" probed at "tilted 90 about X" -- see the
         // KDoc on the FINDING test below. "pickup from table" stays excluded per decision 14
-        // (chop/ACC-only's documented same-orientation collision); every other situation, including
-        // "put down on table" (pickup's mirror), still runs at every probe orientation.
+        // (chop/ACC-only's documented same-orientation collision). Every other situation, including
+        // "put down on table" (pickup's mirror), is *attempted* at every remaining probe
+        // orientation -- but unlike the disturbance sweep's extraSituations probe, this path does
+        // not track reachedDtw, so "no collision" passing here is NOT confirmed evidence that put
+        // down on table actually reached the matcher at these (cross-)orientations: it may simply
+        // be gate-rejected here too, the same way it is at identity for this corpus's 1.0x-1.8x
+        // amplitudes (see the class KDoc "gaps" note). Not widened to extraSituations here, to
+        // avoid scope creep beyond the two characterized findings.
         assertNoCrossOrientationFalsePositive(
             Template(
                 "chop/ACC-only",
@@ -481,12 +494,19 @@ class MotionNegativeRobustnessAndOrientationTest {
      * gates, not the DTW distance, are what separates "fires" from "doesn't" here --
      * - **1.0x (~70 deg of yaw)**: gate-rejected on all 10 seeds (never reaches DTW);
      * - **1.4x (~98 deg, close to a real ~90 deg landscape turn)**: gate-rejected on 4 of 10 seeds,
-     *   **matches on the other 6 of 10** (distances in the low end of the 0.644-0.963 range below);
-     * - **1.8x-2.6x (~126-182 deg)**: matches on **all 10 of 10** seeds at every level.
+     *   **matches on the other 6 of 10** -- at the *high* (closest-to-tau) end of the 0.644-0.963
+     *   range, around **0.96** (e.g. seed `SEED_ROTATE + 1`: distance 0.961), only about 4% inside
+     *   tau=1.0;
+     * - **1.8x-2.6x (~126-182 deg)**: matches on **all 10 of 10** seeds at every level, at
+     *   progressively *lower* (more clearly inside tau) distances down to 0.644 as amplitude rises
+     *   (e.g. 1.8x, seed `SEED_ROTATE + 2`: distance 0.782).
      *
      * Every attempt that clears the gates matches; the gate is the only thing separating a fire
-     * from a miss. 1.4x is within range of how far someone might actually rotate a phone, which is
-     * why this is reported as medium-to-high severity, not a remote edge case. This is a second,
+     * from a miss. The most realistic case (1.4x, ~98 deg) is the thinnest margin, not a deep
+     * miss -- a modestly stricter ACC-only tau (decision 14's planned fix) would plausibly clear
+     * it (*inferred*, not verified here); the grosser over-rotations at 1.8x+ would not. Reported
+     * as medium-to-high severity because it already fires close to a realistic turn, not because
+     * the margin there is large. This is a second,
      * independent instance of the same underlying weakness spec 0001 decision 14 already named for
      * ACC-only chop (gravity-removed, chop's only signal is a single RMS-normalized translational
      * pulse) -- but at a *different* probe orientation and against a *different* negative situation
