@@ -578,9 +578,9 @@ recommendation; #5 differs. The original questions and recommendations are summa
    > records (only the movement window, app-private, excluded from backup and device transfer, deleted with the
    > gesture) and (b) explicit, user-initiated debug recordings.
 
-   *Applying it:* AGENTS.md is the instruction file every agent loads (`CLAUDE.md` imports it), so the
-   architect did not edit it on a relayed approval. The maintainer applies this text directly. Milestone 2
-   (template persistence) must not merge before that.
+   *Applied* by the maintainer in milestone #4's PR with their own wording: "never persisted except in explicit
+   scenarios for gesture storage". Part (b) became moot when decision 5 dropped the trace recorder. The
+   storage constraints above still apply via `docs/engineering/security-privacy.md` and ADR 0006.
 2. **Accessibility as the only host** (ADR 0007). — **Approved.** Fall back to FGS + accessibility only if AC-H2
    fails.
 3. **"Allow on lock screen" default.** — **Off.**
