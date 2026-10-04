@@ -54,10 +54,21 @@ class SegmenterPreRollContinuityTest {
         return lastActiveT
     }
 
-    private fun finishWithQuiet(lastActiveT: Long): Long {
+    /** Feeds just enough quiet frames, [stepNanos] apart, to clear [MotionConfig.quietDebounceNanos]
+     * (plus one more): the default 1ms stepping finishes a segment's quiet tail in fine-grained
+     * steps (test 1 below); [stepNanos] = [FRAME_STEP_NANOS] instead keeps the whole quiet tail on
+     * the same cadence as everything else in a test, so `ring`'s continuity guarantee is not
+     * artificially capped by crowding its fixed frame capacity with an unrealistically fast (1ms)
+     * stepping (item 3, PR #1 fix round: this used to measure the ring's own capacity limit at 1ms
+     * stepping, not the real pre-roll continuity guarantee). */
+    private fun finishWithQuiet(
+        lastActiveT: Long,
+        stepNanos: Long = 1_000_000L,
+    ): Long {
         var t = lastActiveT
-        repeat(500) {
-            t += 1_000_000L
+        val frameCount = (config.quietDebounceNanos / stepNanos).toInt() + 1
+        repeat(frameCount) {
+            t += stepNanos
             quietFrame(t)
         }
         return t
@@ -134,15 +145,30 @@ class SegmenterPreRollContinuityTest {
     fun `a second gesture starting right at re-arming still gets what pre-roll time allows`() {
         var t = settleToArmed(0L)
         t = confirmOnset(t)
-        t = finishWithQuiet(t) // emits segment 1, re-arms
+        // Quiet tail at FRAME_STEP_NANOS, not the default 1ms (see finishWithQuiet's KDoc): at
+        // 1ms stepping, `ring`'s fixed frame capacity fills with far less than preRollNanos of
+        // elapsed time, which used to make this test measure that capacity limit instead of the
+        // real continuity guarantee.
+        t = finishWithQuiet(t, stepNanos = FRAME_STEP_NANOS) // emits segment 1, re-arms
         assertEquals(1, emitted.size)
+        assertEquals(Segmenter.State.ARMED, segmenter.state)
 
-        // Onset immediately on re-arming: at most one frame of "pre-roll" can possibly exist, but
-        // what does exist (the re-arm frame itself) should still be included, not dropped to zero.
-        t = confirmOnset(t)
-        finishWithQuiet(t) // emits segment 2
+        // Onset one frame-step after re-arming (unlike the SETTLING -> ARMED path tested above,
+        // this re-arm goes straight from ACTIVE via finishSegment -> enterArmed, a path that always
+        // pushed every frame to `ring` and was never buggy -- item 1 is specifically about
+        // handleSettling): with the quiet tail now on the same cadence as everything else, `ring`
+        // holds a genuinely continuous history, so the pre-roll should reach the full preRollNanos.
+        val secondOnsetT = t + FRAME_STEP_NANOS
+        t = confirmOnset(secondOnsetT)
+        finishWithQuiet(t, stepNanos = FRAME_STEP_NANOS) // emits segment 2
         assertEquals(2, emitted.size)
-        assertTrue("expected at least the onset-confirming frames themselves", emitted[1].length >= 2)
+        val second = emitted[1]
+        val onsetOffsetNanos = second.tNanos[second.onsetIndex] - second.tNanos[0]
+        assertTrue(
+            "expected a near-full pre-roll (preRollNanos = ${config.preRollNanos / 1_000_000}ms), " +
+                "got only ${onsetOffsetNanos / 1_000_000}ms",
+            onsetOffsetNanos >= config.preRollNanos - FRAME_STEP_NANOS,
+        )
     }
 
     private companion object {
