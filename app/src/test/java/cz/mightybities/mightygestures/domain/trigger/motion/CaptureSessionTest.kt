@@ -168,7 +168,16 @@ class CaptureSessionTest {
         val session = newSession()
         record(session, GesturePrimitives.chop(PerformerVariation.NONE), seed = 20)
         assertTrue(session.result is CaptureResult.Recorded)
-        confirm(session, GesturePrimitives.chop(PerformerVariation.sample(NoiseSource(21))), seed = 22)
+        // Item C10 precedent (GestureRecordabilityTest, MotionFalsePositiveCorpusTest): a sampled
+        // variation's grip tilt must actually be applied to the trace it is rendered with, not
+        // discarded in favor of a hard-coded Quaternion.IDENTITY orientation.
+        val confirmVariation = PerformerVariation.sample(NoiseSource(21))
+        confirm(
+            session,
+            GesturePrimitives.chop(confirmVariation),
+            seed = 22,
+            orientation = confirmVariation.initialOrientation(),
+        )
         assertTrue("expected Confirmed, was ${session.result}", session.result is CaptureResult.Confirmed)
     }
 
@@ -214,11 +223,13 @@ class CaptureSessionTest {
         val session = newSession(hasGyro = false)
         record(session, GesturePrimitives.shake(PerformerVariation.NONE), seed = 50, hasGyro = false)
         assertTrue(session.result is CaptureResult.Recorded)
+        val confirmVariation = PerformerVariation.sample(NoiseSource(51))
         confirm(
             session,
-            GesturePrimitives.shake(PerformerVariation.sample(NoiseSource(51))),
+            GesturePrimitives.shake(confirmVariation),
             seed = 52,
             hasGyro = false,
+            orientation = confirmVariation.initialOrientation(),
         )
         assertTrue("expected Confirmed, was ${session.result}", session.result is CaptureResult.Confirmed)
     }
@@ -228,12 +239,16 @@ class CaptureSessionTest {
         gesture: MotionSegmentSpec,
         seed: Long,
         hasGyro: Boolean = true,
+        // Defaults to identity: every record() call site uses PerformerVariation.NONE (zero
+        // tilt), the "reference performance" (PerformerVariation.NONE's own KDoc), matching the
+        // MotionFalsePositiveCorpusTest precedent of recording the template tilt-free.
+        orientation: Quaternion = Quaternion.IDENTITY,
     ) {
         session.startRecording(nowNanos = 0L)
         SensorModel()
             .generate(
                 wrapped(gesture),
-                Quaternion.IDENTITY,
+                orientation,
                 hasGyro = hasGyro,
                 noise = NoiseSource(seed),
             ).feedTo(session)
@@ -244,12 +259,15 @@ class CaptureSessionTest {
         gesture: MotionSegmentSpec,
         seed: Long,
         hasGyro: Boolean = true,
+        // Item C10 bug class: a sampled PerformerVariation's grip tilt must be passed through here
+        // (variation.initialOrientation()), not silently discarded in favor of identity.
+        orientation: Quaternion = Quaternion.IDENTITY,
     ) {
         session.startConfirming(nowNanos = 5_000_000_000L)
         SensorModel()
             .generate(
                 wrapped(gesture),
-                Quaternion.IDENTITY,
+                orientation,
                 hasGyro = hasGyro,
                 noise = NoiseSource(seed),
             ).feedTo(session)
