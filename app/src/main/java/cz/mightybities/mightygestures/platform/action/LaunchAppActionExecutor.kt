@@ -1,6 +1,7 @@
 package cz.mightybities.mightygestures.platform.action
 
 import android.app.KeyguardManager
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import cz.mightybities.mightygestures.domain.action.ActionFailure
@@ -57,7 +58,18 @@ class LaunchAppActionExecutor(
             context.packageManager.getLaunchIntentForPackage(packageName)
                 ?: return ActionResult.Failed(ActionFailure.AppNotFound)
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(launchIntent)
-        return ActionResult.Success
+        return try {
+            context.startActivity(launchIntent)
+            ActionResult.Success
+        } catch (ignored: ActivityNotFoundException) {
+            // The target vanished (e.g. disabled) between the catalog check above and here (Copilot review,
+            // PR #5); same user-facing outcome as the catalog miss (AC-A3's "App not installed").
+            //
+            // A permission-guarded target's SecurityException (see LaunchOverKeyguardActivity.launchTarget) is
+            // deliberately left uncaught here: the app *is* installed, so AppNotFound would misreport it, and
+            // unlike the trampoline this call site has a caller to report to — AndroidActionExecutor's
+            // catch-all turns it into Failed(Unexpected) without us inventing an unapproved ActionFailure case.
+            ActionResult.Failed(ActionFailure.AppNotFound)
+        }
     }
 }

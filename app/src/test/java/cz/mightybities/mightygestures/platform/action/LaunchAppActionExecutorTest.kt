@@ -1,5 +1,8 @@
 package cz.mightybities.mightygestures.platform.action
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
@@ -63,5 +66,26 @@ class LaunchAppActionExecutorTest {
 
         assertEquals(ActionResult.Failed(ActionFailure.AppNotFound), result)
         assertNull(shadowOf(context).nextStartedActivity)
+    }
+
+    @Test
+    fun `live unlocked target removed between resolution and launch fails as app not found`() {
+        // The target can be uninstalled/disabled between getLaunchIntentForPackage and startActivity
+        // (Copilot review, PR #5); startActivity then throws ActivityNotFoundException even though the
+        // catalog check above passed. This must report the same AppNotFound outcome as that catalog miss,
+        // not the dispatcher's generic Unexpected.
+        val throwingContext = ThrowingStartActivityContext(context)
+        val executor = LaunchAppActionExecutor(throwingContext, keyguardLockQuery = { false })
+
+        val result = executor.execute(context.packageName)
+
+        assertEquals(ActionResult.Failed(ActionFailure.AppNotFound), result)
+    }
+
+    /** A real [Context] whose [startActivity] always throws, to simulate the late-disappearing-target race. */
+    private class ThrowingStartActivityContext(
+        base: Context,
+    ) : ContextWrapper(base) {
+        override fun startActivity(intent: Intent): Unit = throw ActivityNotFoundException(intent.toString())
     }
 }
