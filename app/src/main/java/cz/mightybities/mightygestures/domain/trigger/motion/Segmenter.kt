@@ -163,7 +163,10 @@ internal class Segmenter(
     private fun confirmOnset() {
         active.clear()
         ring.copyTailInto(onsetTimestampNanos - config.preRollNanos, active)
-        ring.clear()
+        // No ring.clear() here (fix for item D21): the ring keeps rolling through ACTIVE (see
+        // handleActive's own ring.push) so that if the *next* gesture's onset follows quickly --
+        // closer than preRollNanos after re-arming -- it still has real recent frames to draw a
+        // pre-roll from, instead of only whatever has accumulated since re-arming cleared it.
         state = State.ACTIVE
         active.onsetIndex = indexOfOnset()
         lastActiveIndex = active.length - 1
@@ -199,6 +202,10 @@ internal class Segmenter(
             discardTooLong()
             return
         }
+        // Also rolled into the ring (fix for item D21), so a quickly-following next gesture's
+        // pre-roll can draw on real recent frames instead of only post-re-arm history; see
+        // confirmOnset's comment.
+        ring.push(t, aX, aY, aZ, lX, lY, lZ, gX, gY, gZ)
         if (isQuietFrame(linMagSq, gyroMagSq, accOffSq, gyroOffSq)) {
             quietAccumNanos += dt
         } else {
@@ -244,7 +251,9 @@ internal class Segmenter(
         quietAccumNanos = 0L
         activeStreak = 0
         lastActiveIndex = -1
-        ring.clear()
+        // No ring.clear() here either (fix for item D21, same reasoning as confirmOnset): the ring
+        // already holds `active`'s own recent frames (handleActive now pushes into both), so
+        // re-arming right after a segment keeps that rolling pre-roll history instead of wiping it.
         active.clear()
     }
 
