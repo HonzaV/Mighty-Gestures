@@ -5,6 +5,17 @@ import cz.mightybities.mightygestures.domain.trigger.motion.MotionTraceCsv
 import cz.mightybities.mightygestures.domain.trigger.motion.MotionTraceSample
 import cz.mightybities.mightygestures.domain.trigger.motion.SensorKind
 
+/** The only `source=` value [toTraceCsv] ever emits: this file serializes nothing but
+ * [SensorModel]-generated samples, never a human recording. Checked against
+ * [MotionTraceCsv.ALLOWED_SOURCES] at class-init time so it can never silently drift from that set
+ * of valid values (GitHub Copilot PR #6 round-3 finding). */
+val SOURCE_SYNTHETIC: String =
+    "synthetic".also {
+        require(it in MotionTraceCsv.ALLOWED_SOURCES) {
+            "\"$it\" must be one of MotionTraceCsv.ALLOWED_SOURCES (${MotionTraceCsv.ALLOWED_SOURCES})"
+        }
+    }
+
 /**
  * Delivers every sample to [sink] in list order, exactly like [SensorModel.generate]'s output is
  * meant to be consumed: GYRO before ACC at a shared timestamp, so the "sample-and-hold" GYRO value
@@ -22,10 +33,17 @@ fun List<MotionTraceSample>.feedTo(sink: MotionSampleSink) {
  * `source=synthetic`), the inverse of [MotionTraceCsv.parse]. Used by generator round-trip tests;
  * v1 commits no fixture files generated this way (spec 0001 decision 5), so this lives next to the
  * generator rather than as a committed resource.
+ *
+ * Requires the metadata's `source` value to be exactly [SOURCE_SYNTHETIC], not merely present:
+ * this serializer only ever renders [SensorModel]-generated samples, never a human recording, so a
+ * caller passing `source=device` (or any other [MotionTraceCsv.ALLOWED_SOURCES] value) would
+ * mislabel generated data as a device trace -- exactly what `source=` exists to prevent (GitHub
+ * Copilot PR #6 round-3 finding).
  */
 fun List<MotionTraceSample>.toTraceCsv(metadata: Map<String, String>): String {
-    require(metadata.containsKey(MotionTraceCsv.METADATA_SOURCE_KEY)) {
-        "metadata must include \"${MotionTraceCsv.METADATA_SOURCE_KEY}\" (ADR 0008)"
+    require(metadata[MotionTraceCsv.METADATA_SOURCE_KEY] == SOURCE_SYNTHETIC) {
+        "metadata must set \"${MotionTraceCsv.METADATA_SOURCE_KEY}=$SOURCE_SYNTHETIC\" (this " +
+            "serializer only ever renders synthetic samples, ADR 0008)"
     }
     val builder = StringBuilder()
     builder.append("# ")
