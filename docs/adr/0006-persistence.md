@@ -88,4 +88,5 @@ Format details:
 - DataStore guide: https://developer.android.com/topic/libraries/architecture/datastore
 - Auto Backup / data extraction rules: https://developer.android.com/identity/data/autobackup
 - Android 12 backup behavior change: https://developer.android.com/about/versions/12/behavior-changes-12
-- docs/engineering/security-privacy.md ("rule config may be backed up; no sensor data")
+- docs/engineering/security-privacy.md (Data: sensor data only in gesture templates, which are excluded from backup
+  and device transfer)
