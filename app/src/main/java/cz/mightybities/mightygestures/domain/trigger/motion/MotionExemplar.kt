@@ -12,6 +12,12 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  * linear acceleration).
  *
  * Holds primitive arrays, so [equals]/[hashCode] are overridden to compare contents, not identity.
+ * The scalar [gravityAtStartX]/Y/Z fields are compared via [Float.toBits] rather than `==`, to match
+ * the semantics [hashCode] already had (`Float.hashCode()` is bit-based) and the array fields' own
+ * `contentEquals`/`contentHashCode` (which, like `Arrays.equals(float[], float[])`, distinguish
+ * `0f` from `-0f` and treat every `NaN` as equal to itself) — a plain `==` on the scalars would
+ * instead follow IEEE 754 (`0f == -0f`, `NaN != NaN`), breaking the equals/hashCode contract for a
+ * pair of exemplars differing only in the sign of one gravity-at-start axis.
  */
 class MotionExemplar
     // Raw sample container: one array per channel/axis plus the start-gravity vector, so a future
@@ -62,9 +68,9 @@ class MotionExemplar
             if (other !is MotionExemplar) return false
             return hasGyro == other.hasGyro &&
                 onsetIndex == other.onsetIndex &&
-                gravityAtStartX == other.gravityAtStartX &&
-                gravityAtStartY == other.gravityAtStartY &&
-                gravityAtStartZ == other.gravityAtStartZ &&
+                gravityAtStartX.toBits() == other.gravityAtStartX.toBits() &&
+                gravityAtStartY.toBits() == other.gravityAtStartY.toBits() &&
+                gravityAtStartZ.toBits() == other.gravityAtStartZ.toBits() &&
                 tNanos.contentEquals(other.tNanos) &&
                 accX.contentEquals(other.accX) &&
                 accY.contentEquals(other.accY) &&
