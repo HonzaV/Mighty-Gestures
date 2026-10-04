@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.MightyGestures" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- LaunchOverKeyguardActivity (spec 0001 decision 12): translucent, no UI of its own. -->
+    <style name="Theme.LaunchOverKeyguard" parent="android:Theme.Translucent.NoTitleBar" />
 </resources>

@@ -13,6 +13,11 @@ versioning: [SemVer](https://semver.org/).
 - ADR 0002: application ID and package name.
 - Build tooling: Gradle 9.8 (wrapper with checksum), AGP 9.4 (built-in Kotlin), Kotlin 2.4, compile/target SDK 37,
   Spotless + ktlint, detekt; CI runs `scripts/verify.sh` on JDK 21.
+- Spec 0001 (motion gestures) and ADRs 0003–0009.
+- Action layer for spec 0001 (not user-reachable until the gesture UI and accessibility host land): open app
+  (incl. over the lock screen via the bouncer), flashlight, lock screen, an app-owned Do Not Disturb mode and
+  sound mode. New manifest entries: `ACCESS_NOTIFICATION_POLICY` (needed only for the DND / sound-mode
+  actions), `<queries>` for launchable apps, and a non-exported lock-screen trampoline activity.
 
 ### Changed
 - Builds and tests require JDK 21 (was JDK 17); bytecode still targets Java 17.

@@ -33,8 +33,12 @@ launching apps). Users must be able to trust that it does exactly what they conf
       of screen content; the purpose is disclosed in the service description and in-app.
 
 **Data**
-- [ ] Sensor data processed in memory only; debug recordings are opt-in, stored in app-private storage, and
-      deletable from the UI.
+- [ ] Sensor data is processed in memory only, with one exception: the recorded movement window of a gesture
+      template (next item), consistent with AGENTS.md §2, non-negotiable 2 (privacy by construction). Spec 0001
+      decision 5 dropped the debug recorder in favor of synthetic traces only, so no other persistence path
+      exists.
+- [ ] Gesture templates (spec 0001 decision 1) store only the recorded movement window, stay app-private, are
+      excluded from cloud backup and device transfer (`dataExtractionRules`), and are deleted with the gesture.
 - [ ] No logging of sensor values, app usage, or identifiers in release builds.
 - [ ] No WebView. If ever needed: no JavaScript bridge, no file access.
 
