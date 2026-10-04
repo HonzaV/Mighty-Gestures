@@ -121,11 +121,20 @@ internal class Segmenter(
         gY: Float,
         gZ: Float,
     ) {
+        // Every SETTLING frame goes into the ring (milestone 1 fix round, item 1), not just
+        // the one frame that happens to cross into ARMED: that used to leave `ring` with no more
+        // than a single frame of history whenever an onset was confirmed soon after re-arming,
+        // truncating the pre-roll far below preRollNanos (AC-M2 template/live span mismatch).
+        // Safe even for a non-quiet SETTLING frame: [MotionConfig.preRollNanos] is required
+        // (`MotionConfig.init`) to be < [MotionConfig.quietDebounceNanos], so any eventual onset is
+        // always confirmed at least quietDebounceNanos after the *last* non-quiet SETTLING frame —
+        // which puts `onset - preRoll` strictly after that frame's timestamp, so `copyTailInto`'s
+        // own cutoff excludes it (and everything before it) regardless of whether it sat in `ring`.
+        ring.push(t, aX, aY, aZ, lX, lY, lZ, gX, gY, gZ)
         if (isQuietFrame(linMagSq, gyroMagSq, accOffSq, gyroOffSq)) {
             quietAccumNanos += dt
             if (quietAccumNanos >= config.quietDebounceNanos) {
                 enterArmed()
-                ring.push(t, aX, aY, aZ, lX, lY, lZ, gX, gY, gZ)
             }
         } else {
             quietAccumNanos = 0L

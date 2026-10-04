@@ -14,6 +14,11 @@ import org.junit.Test
  * observed quiet frames — there is no reason to discard them just because they happened to occur
  * while finishing the first segment's bookkeeping, rather than after.
  *
+ * Also covers milestone 1 fix round item 1 (a related but distinct bug: [Segmenter.handleSettling]
+ * itself only ever pushed the single frame that crossed `SETTLING` into `ARMED`, not every
+ * `SETTLING` frame, truncating the very *first* gesture's pre-roll whenever onset followed
+ * re-arming quickly).
+ *
  * Driven directly via [Segmenter.onFrame] (not the synthetic generator), like
  * [SegmenterBoundaryTest]: `Float` time-stepping in the generator is too coarse for this.
  */
@@ -56,6 +61,38 @@ class SegmenterPreRollContinuityTest {
             quietFrame(t)
         }
         return t
+    }
+
+    @Test
+    fun `the first gesture, settling cold with no generous lead-in margin, still gets a near-full pre-roll`() {
+        // Item 1 (reviewer, PR #1 fix round): handleSettling used to push only the single frame
+        // that crossed SETTLING into ARMED, not every SETTLING frame -- a bug the rest of this
+        // class's tests never caught because MotionTestHarness's SETTLING_LEAD_SECONDS = 0.7s
+        // margin always leaves many ARMED-state frames in the ring well before onset, and the two
+        // partner tests above/below re-arm via ACTIVE -> ARMED (confirmOnset/finishSegment), a path
+        // that always pushed every frame and was never buggy. This drives SETTLING itself, cold,
+        // stopping the instant ARMED is reached (no lead-in, no filler ARMED frames before onset).
+        var t = 0L
+        while (segmenter.state != Segmenter.State.ARMED) {
+            quietFrame(t)
+            t += FRAME_STEP_NANOS
+        }
+        val armedAtT = t - FRAME_STEP_NANOS // the frame that actually crossed SETTLING -> ARMED
+
+        val onsetT = armedAtT + 40_000_000L // onset confirmed ~40ms after arming, no frames in between
+        t = confirmOnset(onsetT)
+        finishWithQuiet(t)
+
+        assertEquals(1, emitted.size)
+        val segment = emitted[0]
+        val onsetOffsetNanos = segment.tNanos[segment.onsetIndex] - segment.tNanos[0]
+        assertTrue(
+            "expected a pre-roll close to preRollNanos (${config.preRollNanos / 1_000_000}ms), " +
+                "drawn from the SETTLING-phase quiet history, got only " +
+                "${onsetOffsetNanos / 1_000_000}ms (bug symptom: truncated to the ~40ms new-ARMED " +
+                "gap alone)",
+            onsetOffsetNanos >= config.preRollNanos - FRAME_STEP_NANOS,
+        )
     }
 
     @Test
