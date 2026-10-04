@@ -26,11 +26,9 @@ import org.junit.Test
  * gesture flow would (unlike [MotionMatcherDistanceSpreadTest] and [MotionRobustnessTest], which
  * build templates directly via [RecordedPipeline], bypassing the validator).
  *
- * `twist` is deliberately excluded: this PR's own [TemplateValidator] gates reject every rendering
- * of [GesturePrimitives.twist] this test tried (`TOO_GENTLE`, peak gyro 3.2 rad/s < the 5 rad/s
- * gate, peak lin only gravity-leakage well under 8 m/s^2) -- it cannot currently be recorded through
- * the real flow at all, so there is no real template to probe negatives against (reported as a
- * finding in the PR review, not fixed here).
+ * `twist` is covered in 6-D but not ACC-only: it is a pure-rotation gesture by design, so ACC-only
+ * its only signature is gravity leakage from the rotation (ADR 0008 "Consequences"), which no peak
+ * value fixes -- see [GestureRecordabilityTest]'s class KDoc (PR #1 fix round, item B7).
  *
  * A false trigger is a worse bug than a missed gesture (AGENTS.md, testing.md): this test's only
  * assertion is "no negative ever matches", in both the 6-D (ACC+GYRO) and 3-D (ACC-only) cases. It
@@ -66,10 +64,12 @@ class MotionFalsePositiveCorpusTest {
 
         clockNanos = CONFIRM_DELAY_NANOS
         session.startConfirming(clockNanos)
+        val confirmVariation = PerformerVariation.sample(NoiseSource(confirmSeed))
+        // Item C10: the user's own grip tilt at confirmation time, not always Quaternion.IDENTITY.
         SensorModel()
             .generate(
-                wrapped(gesture(PerformerVariation.sample(NoiseSource(confirmSeed)))),
-                Quaternion.IDENTITY,
+                wrapped(gesture(confirmVariation)),
+                confirmVariation.initialOrientation(),
                 hasGyro = hasGyro,
                 noise = NoiseSource(confirmSeed + 1),
             ).feedTo(session)
@@ -168,18 +168,25 @@ class MotionFalsePositiveCorpusTest {
         assertNoFalsePositives(GesturePrimitives::shake, hasGyro = true, label = "shake/6D")
     }
 
-    // No "chop, ACC-only" case: GesturePrimitives.chop(NONE) itself fails TemplateValidator with
-    // TOO_GENTLE_ENERGY when hasGyro=false (confirmed empirically: CaptureSession.startRecording
-    // reports Invalid(TOO_GENTLE_ENERGY), not Recorded). Chop's mean-energy gate only clears 4.0
-    // because of its own designed gyroPeak=3 rad/s rotational component; stripped of that channel
-    // (as AC-M10's ACC-only mode does), only the linear term remains and the gate is not met. So,
-    // unlike `shake` (pure translation, AC-M10's own fixture in CaptureSessionTest), `chop` cannot
-    // currently be recorded at all on an ACC-only device -- reported as a finding, not fixed here.
+    @Test
+    fun `no everyday-handling negative matches a twist template, 6-D`() {
+        assertNoFalsePositives(GesturePrimitives::twist, hasGyro = true, label = "twist/6D")
+    }
 
     @Test
     fun `no everyday-handling negative matches a shake template, ACC-only`() {
         assertNoFalsePositives(GesturePrimitives::shake, hasGyro = false, label = "shake/ACC-only")
     }
+
+    // No "chop, ACC-only" assertion: chop now records ACC-only (item B7 raised its peak), but
+    // running it through *this* corpus found a genuine false positive -- not a test artifact --
+    // "pickup from table" matches a chop/ACC-only template at distance ~0.95-1.0, within tau=1.0,
+    // across several seeds. ACC-only, chop's only signal is a single RMS-normalized translational
+    // pulse, and "picking the phone up" is shaped similarly enough once gravity and gyro are
+    // stripped away. This is reported as a finding for the maintainer/tester (milestone 3's real
+    // corpus and calibration, and possibly whether chop-shaped gestures should be offered at all
+    // on ACC-only devices), not fixed here by further retuning peaks against this one negative --
+    // see the developer report's "what the tester should probe".
 
     /** One attempt's outcome against [template]: how many segments it produced, how many reached
      * DTW, the minimum distance reached, and any match(es) within tau (as reportable strings). */

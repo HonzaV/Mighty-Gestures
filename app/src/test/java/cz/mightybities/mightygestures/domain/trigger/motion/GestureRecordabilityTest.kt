@@ -100,7 +100,10 @@ class GestureRecordabilityTest {
             )
         session.startRecording(clockNanos)
         val trace = concat(listOf(stillness(0.7f), factory(variation, false), stillness(1.8f)))
-        SensorModel().generate(trace, Quaternion.IDENTITY, hasGyro = hasGyro, noise = NoiseSource(seed)).feedTo(session)
+        // Item C10: apply the variation's own grip tilt instead of always Quaternion.IDENTITY.
+        SensorModel()
+            .generate(trace, variation.initialOrientation(), hasGyro = hasGyro, noise = NoiseSource(seed))
+            .feedTo(session)
         val result = session.result
         if (result !is CaptureResult.Recorded) {
             val amplitude = variation.amplitudeScale

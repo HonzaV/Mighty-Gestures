@@ -11,14 +11,15 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  * gate). [matchThreshold] (τ) in particular has no ADR-given number ("a placeholder is used" until
  * milestone 3); the value here (lowered from an initial 1.6 guess) is the smallest round number
  * that keeps every positive distance below it and every negative distance above it on this PR's
- * own three-gesture, ten-seed corpus, in **both** the 6-D (ACC+GYRO) and 3-D (ACC-only) cases —
- * see `MotionMatcherDistanceSpreadTest`. As of the PR #1 fix round (gesture shapes made biphasic,
- * item C9; peaks re-tuned so every gesture clears `TemplateValidator`'s gates, item B7), that test
- * reports max-positive/min-negative of about 0.13/4.3 in 6-D (33x margin) and about 0.10/1.6
- * ACC-only (16x margin) — both comfortably separated, with the ACC-only margin still the thinner
- * of the two (reduced discrimination without a gyroscope is an accepted ADR 0008 trade-off, not a
- * bug). milestone 3 may still find separate τ per channel-set is needed on the full corpus. Not a
- * calibration result.
+ * own three-gesture, five-seed corpus (per gesture; `MotionMatcherDistanceSpreadTest.REPEAT_SEEDS`),
+ * in **both** the 6-D (ACC+GYRO) and 3-D (ACC-only) cases, including each gesture's own grip tilt
+ * (item C10). As of the PR #1 fix round (gesture shapes made biphasic, item C9; peaks re-tuned so
+ * every gesture clears `TemplateValidator`'s gates, item B7), that test reports max-positive /
+ * min-negative of about 0.17 / 4.3 in 6-D (min-negative is ~4.3x τ) and about 0.15 / 1.6 ACC-only
+ * (min-negative is ~1.6x τ) — both still separated, with the ACC-only margin the thinner of the
+ * two (reduced discrimination without a gyroscope is an accepted ADR 0008 trade-off, not a bug;
+ * see also `MotionFalsePositiveCorpusTest`'s chop/ACC-only finding). milestone 3 may still find
+ * separate τ per channel-set is needed on the full corpus. Not a calibration result.
  */
 data class MotionConfig(
     /** **Gravity filter** (ADR 0008 decision G1). τg: the low-pass time constant. 0.25 s follows

@@ -39,9 +39,10 @@ private class SpreadDistances {
  * something to paper over by changing the cost function here.
  *
  * **Finding on this corpus** (PR #1 fix round, item C13, re-measured after the biphasic gesture
- * shapes of item C9 and the re-tuned peaks of item B7): max-positive/min-negative is about
- * 0.13/4.3 in 6-D (roughly 33x margin) and about 0.10/1.6 ACC-only (roughly 16x margin) at τ=1.0.
- * Both comfortably separated, but the 3-D (ACC-only) margin is still the thinner of the two —
+ * shapes of item C9, the re-tuned peaks of item B7, and applying each gesture's own grip tilt,
+ * item C10): max-positive/min-negative is about 0.17/4.3 in 6-D (min-negative ~4.3x τ) and about
+ * 0.15/1.6 ACC-only (min-negative ~1.6x τ) at τ=1.0. Both still separated, but the 3-D (ACC-only)
+ * margin is still the thinner of the two —
  * twist's only ACC signature is gravity leaking through the gravity filter during its rotation
  * (ADR 0008 "Consequences"), which resembles chop's genuine translational signature more than a
  * gyro-equipped comparison would. This is the ADR's accepted "reduced discrimination" trade-off
@@ -67,7 +68,13 @@ class MotionMatcherDistanceSpreadTest {
         seed: Long,
     ): ProcessedSegment {
         val recorded = RecordedPipeline(config, hasGyro)
-        recorded.feed(settlingMargin(gesture(variation, mirrored)), noise = NoiseSource(seed))
+        // Item C10: apply the variation's grip tilt, not always Quaternion.IDENTITY -- device-frame
+        // DTW is tilt-sensitive, so a spread measured without this understates real variability.
+        recorded.feed(
+            settlingMargin(gesture(variation, mirrored)),
+            initialOrientation = variation.initialOrientation(),
+            noise = NoiseSource(seed),
+        )
         check(recorded.segments.size == 1) { "expected exactly one segment, got ${recorded.segments.size}" }
         return preprocessor.process(recorded.segments[0], config)
     }
