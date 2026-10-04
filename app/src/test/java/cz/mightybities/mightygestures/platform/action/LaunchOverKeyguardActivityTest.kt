@@ -283,6 +283,66 @@ class LaunchOverKeyguardActivityTest {
         assertTrue(!activity.hasPendingSafetyTimeout())
     }
 
+    @Test
+    fun `a SUCCEEDED outcome arriving after the safety timeout already finished does not launch anything`() {
+        // Simulates a dismiss callback queued on the main thread (e.g. via Handler.post) right as the 60 s
+        // safety timeout fires first: finishOnce() already ran, so onDismissOutcome must ignore the late
+        // SUCCEEDED instead of launching the target from a dead activity.
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        var deliver: ((KeyguardDismissOutcome) -> Unit)? = null
+        activity.keyguardDismisser =
+            object : KeyguardDismisser {
+                override fun requestDismiss(
+                    activity: android.app.Activity,
+                    onResult: (KeyguardDismissOutcome) -> Unit,
+                ) {
+                    deliver = onResult
+                }
+            }
+
+        controller.create()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(61))
+        assertTrue(activity.isFinishing)
+
+        requireNotNull(deliver).invoke(KeyguardDismissOutcome.SUCCEEDED)
+
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
+    @Test
+    fun `a late ERROR while unlocked after the safety timeout launches nothing`() {
+        val controller =
+            Robolectric.buildActivity(
+                LaunchOverKeyguardActivity::class.java,
+                intentFor(context.packageName),
+            )
+        val activity = controller.get()
+        activity.keyguardLockQuery = KeyguardLockQuery { false }
+        var deliver: ((KeyguardDismissOutcome) -> Unit)? = null
+        activity.keyguardDismisser =
+            object : KeyguardDismisser {
+                override fun requestDismiss(
+                    activity: android.app.Activity,
+                    onResult: (KeyguardDismissOutcome) -> Unit,
+                ) {
+                    deliver = onResult
+                }
+            }
+
+        controller.create()
+        shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofSeconds(61))
+        assertTrue(activity.isFinishing)
+
+        requireNotNull(deliver).invoke(KeyguardDismissOutcome.ERROR)
+
+        assertNull(shadowOf(activity).nextStartedActivity)
+    }
+
     /**
      * Drives the trampoline through the real [AndroidKeyguardDismisser] (default `keyguardDismisser`), not the
      * fake, so a swapped outcome mapping would be caught here even if [AndroidKeyguardDismisserTest] did not

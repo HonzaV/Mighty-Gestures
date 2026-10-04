@@ -61,6 +61,10 @@ class AndroidKeyguardDismisser : KeyguardDismisser {
  * keyguard was already unlocked at call time (code review, PR #4 fix round 2), which races with
  * [LaunchAppActionExecutor]'s own live check. So `ERROR` re-checks [KeyguardManager.isKeyguardLocked] itself:
  * unlocked means the race resolved in our favor and the target still opens; locked means a genuine refusal.
+ *
+ * An outcome can also arrive *after* [finishOnce] already ran — e.g. a callback queued on the main looper
+ * right as the 60 s safety timeout fires first. [onDismissOutcome] ignores that race instead of launching the
+ * target from a dead activity (Copilot review, PR #5).
  */
 class LaunchOverKeyguardActivity : ComponentActivity() {
     /** Overridable by tests (see class KDoc); defaults to the real framework call in production. */
@@ -104,6 +108,9 @@ class LaunchOverKeyguardActivity : ComponentActivity() {
         outcome: KeyguardDismissOutcome,
         packageName: String,
     ) {
+        // The safety timeout (or a prior outcome) may have already called finishOnce(); a late outcome must
+        // not launch the target from a dead activity.
+        if (finished) return
         when (outcome) {
             KeyguardDismissOutcome.SUCCEEDED -> {
                 launchTarget(packageName)
