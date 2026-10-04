@@ -8,6 +8,7 @@ import cz.mightybities.mightygestures.domain.action.ActionFailure
 import cz.mightybities.mightygestures.domain.action.ActionResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -82,10 +83,31 @@ class LaunchAppActionExecutorTest {
         assertEquals(ActionResult.Failed(ActionFailure.AppNotFound), result)
     }
 
+    @Test
+    fun `live unlocked permission-guarded target propagates SecurityException uncaught`() {
+        // Deliberately NOT caught in LaunchAppActionExecutor (see its executeUnlocked KDoc comment): the app
+        // is installed here, so AppNotFound would misreport it, and AndroidActionExecutor's catch-all already
+        // maps an uncaught exception to Failed(Unexpected). Pinned so a future change doesn't silently start
+        // treating a permission-guarded target the same as an uninstalled one.
+        val throwingContext = SecurityExceptionStartActivityContext(context)
+        val executor = LaunchAppActionExecutor(throwingContext, keyguardLockQuery = { false })
+
+        assertThrows(SecurityException::class.java) {
+            executor.execute(context.packageName)
+        }
+    }
+
     /** A real [Context] whose [startActivity] always throws, to simulate the late-disappearing-target race. */
     private class ThrowingStartActivityContext(
         base: Context,
     ) : ContextWrapper(base) {
         override fun startActivity(intent: Intent): Unit = throw ActivityNotFoundException(intent.toString())
+    }
+
+    /** As [ThrowingStartActivityContext], but for a permission-guarded target. */
+    private class SecurityExceptionStartActivityContext(
+        base: Context,
+    ) : ContextWrapper(base) {
+        override fun startActivity(intent: Intent): Unit = throw SecurityException("permission denied")
     }
 }
