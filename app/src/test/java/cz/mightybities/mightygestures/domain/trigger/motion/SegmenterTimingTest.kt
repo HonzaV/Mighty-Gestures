@@ -87,7 +87,7 @@ class SegmenterTimingTest {
         // never leaves ARMED at all -- AC-M7 holds this way, not via the ADR's TOO_LONG discard
         // (which is what continuous motion that *does* cross onset would hit instead; both are
         // legitimate ways to "never yield a segment", and this is the one actually observed here).
-        val trace = concat(listOf(stillness(0.7f), walking(durationSeconds = 6f, config = config)))
+        val trace = concat(listOf(stillness(0.7f), walking(durationSeconds = 6f)))
         val recorded = RecordedPipeline(config)
         recorded.feed(trace, noise = NoiseSource(4))
         assertTrue(recorded.segments.isEmpty())

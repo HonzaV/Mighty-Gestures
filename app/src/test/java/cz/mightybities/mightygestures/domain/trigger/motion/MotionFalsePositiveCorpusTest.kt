@@ -140,8 +140,8 @@ class MotionFalsePositiveCorpusTest {
             Situation(
                 "short walking burst (2-3 steps)",
                 listOf(
-                    SEED_WALK to walkingBurst(stepCount = 2, config = config),
-                    SEED_WALK + 1 to walkingBurst(stepCount = 3, config = config),
+                    SEED_WALK to walkingBurst(stepCount = 2),
+                    SEED_WALK + 1 to walkingBurst(stepCount = 3),
                 ),
             ),
             Situation(

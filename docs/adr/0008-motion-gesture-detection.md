@@ -171,6 +171,18 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   Bump `ALGORITHM_VERSION` on any pipeline change and re-derive stored templates from their raw samples. Track
   a false-positive budget (spec 0001).
 
+## Implementation notes
+
+- **2026-10-03 (spec 0001 PR #1 fix round):** "gyro = latest GYRO sample (sample-and-hold)" above
+  is keyed by **sensor timestamp**, not arrival order. `MotionPipeline` pairs each ACC frame with
+  the GYRO sample whose timestamp is at or before it, buffering an ACC frame briefly if GYRO has
+  not "caught up" yet (bounded by `maxTimestampGapNanos`) rather than falling back to whatever
+  GYRO value happened to arrive first. This matters because a batching delivery path can plausibly
+  present a whole buffered window as "every ACC sample, then every GYRO sample" instead of
+  interleaved; arrival-order sample-and-hold would silently use a stale (or, worse, a
+  not-yet-arrived) GYRO value for such a window. The decision above is unchanged: GYRO is still
+  held between samples, just keyed correctly.
+
 ## References
 - Motion sensors guide (linear acceleration, high-pass example): https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion
 - SensorManager (`registerListener` with `maxReportLatencyUs` + `Handler`): https://developer.android.com/reference/android/hardware/SensorManager

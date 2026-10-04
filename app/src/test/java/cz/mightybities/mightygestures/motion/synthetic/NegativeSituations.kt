@@ -1,6 +1,5 @@
 package cz.mightybities.mightygestures.motion.synthetic
 
-import cz.mightybities.mightygestures.domain.trigger.motion.MotionConfig
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -86,9 +85,7 @@ fun rotateToLandscape(
 fun walkingBurst(
     stepCount: Int = 3,
     stepFrequencyHz: Float = 1.8f,
-    config: MotionConfig = MotionConfig(),
-): MotionSegmentSpec =
-    walking(durationSeconds = stepCount / stepFrequencyHz, stepFrequencyHz = stepFrequencyHz, config = config)
+): MotionSegmentSpec = walking(durationSeconds = stepCount / stepFrequencyHz, stepFrequencyHz = stepFrequencyHz)
 
 /**
  * A single "pocket" burst: a short, low-passed pseudo-random wobble (sum of a handful of
