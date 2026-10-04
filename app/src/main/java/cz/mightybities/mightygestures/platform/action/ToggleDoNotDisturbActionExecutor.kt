@@ -63,17 +63,14 @@ class ToggleDoNotDisturbActionExecutor(
     }
 
     /**
-     * The condition is built with [Condition.SOURCE_USER_ACTION], not the legacy 3-arg constructor (whose
-     * `source` defaults to `SOURCE_UNKNOWN`): orchestrator-verified reading of AOSP main's
-     * `ZenModeHelper.reconsiderConditionOverride()` (`services/core/java/com/android/server/notification/
-     * ZenModeHelper.java`, `applyConditionAndReconsiderOverride`) keeps a user's own manual activation/
-     * deactivation of the rule unless the reported condition's source is `SOURCE_USER_ACTION` or the condition
-     * already agrees with the existing override — its comment reads "the app is reporting that the user asked
-     * for it ... no need to override". A gesture *is* an explicit user action, so reporting it this way is
-     * honest, and it is the only way a gesture can still toggle the mode after the user has touched it manually
-     * in Settings. (The app-call to `setAutomaticZenRuleState` is mapped to `ORIGIN_USER_IN_APP` inside
-     * `NotificationManagerService` before reaching `ZenModeHelper`; that hop is *inferred*, not read from
-     * source, but does not change the `SOURCE_USER_ACTION` reasoning above.)
+     * The condition carries [Condition.SOURCE_USER_ACTION] (a gesture is an explicit user action) instead of the
+     * 3-arg constructor's `SOURCE_UNKNOWN`. Verified in AOSP `ZenModeHelper.applyConditionAndReconsiderOverride`
+     * (main, read 2026-10-04): with the `modes_ui` flag, a user-action condition from the owning app replaces a
+     * manual on/off override the user set in Settings, whereas any other source keeps that override until the
+     * app's condition agrees with it. Without `modes_ui` (the `android15-release` branch), the source only
+     * re-attributes the change to the user; a manual "turn off" (snooze) may then need one extra gesture to clear
+     * (*inferred*).
+     * Which shipped releases enable `modes_ui` is *inferred* (Android 16+), not verified.
      */
     private fun toggleRule(): ActionResult {
         val ruleId = findRuleId() ?: notificationManager.addAutomaticZenRule(buildRule())
