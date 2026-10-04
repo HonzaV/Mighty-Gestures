@@ -7,6 +7,7 @@ import cz.mightybities.mightygestures.motion.synthetic.Quaternion
 import cz.mightybities.mightygestures.motion.synthetic.SensorModel
 import cz.mightybities.mightygestures.motion.synthetic.feedTo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -160,5 +161,96 @@ class MotionPipelineRobustnessFixesTest {
             Segmenter.State.ARMED,
             pipeline.state,
         )
+    }
+
+    @Test
+    fun `a backward GYRO timestamp resets the whole pipeline, not just gyro history (A4)`() {
+        // Captures a copy of every emitted segment's raw tNanos/gyroX (not a MotionExemplar, which
+        // rebases timestamps to 0): this test needs to reason about absolute timestamps.
+        data class Captured(
+            val tNanos: LongArray,
+            val gyroX: FloatArray,
+            val length: Int,
+        )
+        val emitted = mutableListOf<Captured>()
+        val pipeline =
+            MotionPipeline(config, hasGyro = true) { seg ->
+                emitted += Captured(seg.tNanos.copyOf(seg.length), seg.gyroX.copyOf(seg.length), seg.length)
+            }
+
+        // 1. Settle to ARMED.
+        var t = 0L
+        repeat(30) {
+            pipeline.onSample(SensorKind.GYRO, t, 0f, 0f, 0f)
+            pipeline.onSample(SensorKind.ACC, t, 0f, 0f, 9.81f)
+            t += 20_000_000L
+        }
+        assertEquals(Segmenter.State.ARMED, pipeline.state)
+
+        // 2. Confirm onset and stay ACTIVE for ~180ms (above minActiveDurationNanos=150ms, so a
+        // finished segment here would be emitted, not discarded as TOO_SHORT) via a high, constant
+        // GYRO reading; ACC stays flat so onset/activity comes purely from the gyro channel. GYRO is
+        // sent just before its matching ACC each time, so every frame is paired immediately (no
+        // buffering) and really reaches the segmenter.
+        repeat(10) {
+            pipeline.onSample(SensorKind.GYRO, t, 5f, 0f, 0f) // |gyro|=5 >> G_on=2.0
+            pipeline.onSample(SensorKind.ACC, t, 0f, 0f, 9.81f)
+            t += 20_000_000L
+        }
+        assertEquals(Segmenter.State.ACTIVE, pipeline.state)
+        val lastGyroBeforeRebase = t - 20_000_000L // 780ms: the last GYRO timestamp actually sent
+
+        // 3. A few ACC-only quiet frames: GYRO has not "caught up" to their timestamps yet, so they
+        // buffer in pendingAcc instead of reaching the segmenter — exactly the "ACTIVE segment with
+        // pending ACC frames, GYRO lagging" situation from the finding. They stay within
+        // gyroSkewToleranceNanos (= maxTimestampGapNanos = 200ms) of the newest ACC so far, so they
+        // do not time out and release themselves before step 4.
+        val pendingAccStartT = t
+        repeat(3) {
+            pipeline.onSample(SensorKind.ACC, t, 0f, 0f, 9.81f)
+            t += 20_000_000L
+        }
+
+        // 4. GYRO's own clock rebases backwards (e.g. a sensor re-registration): below
+        // lastGyroBeforeRebase (780ms), but still carrying an active (>= G_on) value, so that if the
+        // old gyro-only-clear behavior let this pipeline stay ACTIVE and later trim/emit a segment,
+        // this marker frame surviving into it would be an unmistakable sign of the bug (an emitted
+        // segment's trailing quiet frames are trimmed away, but an active one like this would not be).
+        val rebaseT = lastGyroBeforeRebase - 80_000_000L // 700ms: backwards relative to 780ms
+        pipeline.onSample(SensorKind.GYRO, rebaseT, 3.3f, 0f, 0f) // |gyro|=3.3 >= G_on=2.0
+
+        assertEquals(
+            "a backward GYRO timestamp must reset the whole pipeline (ADR 0008), not just gyro " +
+                "history: the in-progress ACTIVE segment and the pending ACC frames above must not survive",
+            Segmenter.State.SETTLING,
+            pipeline.state,
+        )
+        assertTrue("no segment must be emitted across a gyro clock rebase", emitted.isEmpty())
+
+        // 5. GYRO-only samples advancing past the pending ACC timestamps from step 3. On the old,
+        // partial-clear behavior these would make the pending frames look "resolvable" and release
+        // them paired with a post-rebase GYRO value; after the fix pendingAcc was already dropped by
+        // the reset in step 4, so this is a no-op, proven by the final assertions below.
+        pipeline.onSample(SensorKind.GYRO, rebaseT + 150_000_000L, 0f, 0f, 0f)
+        pipeline.onSample(SensorKind.GYRO, rebaseT + 170_000_000L, 0f, 0f, 0f)
+
+        // 6 & 7. Re-settle from scratch, with ACC timestamps safely after every pending timestamp
+        // from step 3 (so there's no risk of a stray pairing), and confirm nothing from before the
+        // rebase ever surfaces: a clean ARMED, no segment ever emitted.
+        var t2 = rebaseT + 200_000_000L
+        repeat(30) {
+            pipeline.onSample(SensorKind.GYRO, t2, 0f, 0f, 0f)
+            pipeline.onSample(SensorKind.ACC, t2, 0f, 0f, 9.81f)
+            t2 += 20_000_000L
+        }
+        assertEquals(Segmenter.State.ARMED, pipeline.state)
+        assertTrue(
+            "no post-rebase gyro value may ever be paired with a pre-rebase ACC frame: " +
+                "no segment should have been emitted at all",
+            emitted.isEmpty(),
+        )
+        check(t2 > pendingAccStartT + 3 * 20_000_000L) {
+            "test bug: re-settle timestamps must stay after every pending-ACC timestamp from step 3"
+        }
     }
 }

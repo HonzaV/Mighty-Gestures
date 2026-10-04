@@ -13,7 +13,9 @@ import kotlin.math.ceil
  * non-monotonic ACC timestamp (any backwards jump beyond an exact duplicate — a clock rebase, not
  * normal jitter), resets the gravity filter and the segmenter (ADR 0008): either usually means the
  * sensor was unregistered and re-registered, so the old gravity estimate and any in-progress window
- * are stale. An exact duplicate timestamp is dropped instead (no new information).
+ * are stale. An exact duplicate timestamp is dropped instead (no new information). A non-monotonic
+ * GYRO timestamp resets the same way (see the GYRO-pairing bullets below): its own clock rebase is
+ * just as stale a signal as the ACC one, even though GYRO is not what the segmenter reads time from.
  *
  * Non-finite (`NaN`/`Infinity`) axis values are dropped outright, for both ACC and GYRO: a single
  * bad sample would otherwise poison [GravityFilter]'s running estimate (and the segmenter's
@@ -34,9 +36,14 @@ import kotlin.math.ceil
  *   released using the best GYRO value available, rather than waiting forever (bounding latency,
  *   not just buffer size; a device with `hasGyro = true` that simply never delivers a GYRO sample
  *   must not stall the ACC stream indefinitely).
- * - A GYRO sample with a *backwards* timestamp (its own clock rebase) clears [gyroHistory] the same
- *   way an ACC rebase clears the whole pipeline, so a stale pre-rebase sample is never paired with
- *   a post-rebase ACC frame.
+ * - A GYRO sample with a *backwards* timestamp (its own clock rebase) resets the **whole** pipeline
+ *   — the same [reset] path an ACC rebase takes, not just [gyroHistory] — before the rebased sample
+ *   is accepted. Clearing only [gyroHistory] would leave [pendingAcc], the gravity estimate and any
+ *   in-progress `ACTIVE` segment behind: a buffered pre-rebase ACC frame could then be released once
+ *   a later, post-rebase GYRO sample makes it look "resolvable" (`oldestT <= gyroMaxTimestampNanos`),
+ *   pairing it with a GYRO value from after the clock rebase, and an `ACTIVE` segment could keep
+ *   accumulating across the discontinuity. A full reset makes that impossible: there is nothing left
+ *   to pair or continue.
  *
  * Both rings are sized like [Segmenter.ringCapacity]: generously above the ~200 Hz platform cap, so
  * realistic batching (ADR 0008's `maxReportLatencyUs`) never overflows them in normal operation.
@@ -105,10 +112,13 @@ internal class MotionPipeline(
     ) {
         if (!hasGyro) return
         if (lastGyroTimestampNanos != Long.MIN_VALUE && t < lastGyroTimestampNanos) {
-            // This sensor's own clock rebased: nothing already in the ring can still be trusted as
-            // "the latest GYRO at or before" anything from before the rebase.
-            gyroHistory.clear()
-            gyroMaxTimestampNanos = Long.MIN_VALUE
+            // This sensor's own clock rebased: not just gyroHistory is stale. pendingAcc, the
+            // gravity estimate and any in-progress ACTIVE segment all predate this rebase too, so a
+            // partial clear (gyroHistory only) could let a buffered pre-rebase ACC frame survive to
+            // be paired with a post-rebase GYRO value once it looks "resolvable", or let an ACTIVE
+            // segment keep accumulating across the discontinuity. Reset the whole pipeline, the same
+            // path an ACC rebase takes, before accepting the rebased sample below.
+            reset()
         }
         lastGyroTimestampNanos = t
         gyroHistory.push(t, x, y, z)
