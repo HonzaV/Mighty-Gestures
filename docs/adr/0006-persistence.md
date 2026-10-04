@@ -7,7 +7,7 @@
 ## Context
 v1 persists a list of rules ("gestures") as defined in ADR 0004. Each rule has a name, enabled flag, conditions,
 one action, and a motion template. The template is two short exemplars of motion samples (ADR 0008):
-≤ ~3.1 s × 50 Hz × 2 sensors × 3 axes ≈ 1 900 floats per exemplar. The count is unlimited by product decision,
+≤ ~3.1 s × 50 Hz × 2 sensors × 3 axes ≈ 930 floats per exemplar (≈ 1 900 per template). The count is unlimited by product decision,
 but a realistic user has 1–20 gestures. Access patterns:
 - the UI observes the list (Flow), toggles `enabled`, adds and deletes;
 - the accessibility service loads all enabled rules' templates into memory for matching;

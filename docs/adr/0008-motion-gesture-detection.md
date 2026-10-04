@@ -79,9 +79,13 @@ on the **synthetic** corpus only, and **unverified on real human motion** until 
 | end debounce (maintainer) | quiet continuously for **500 ms** of sensor time |
 | pre-roll kept before onset | 100 ms (ring buffer sized for 200 Hz) |
 | segment = | `[onset − preRoll, lastActiveFrame]`: the quiet tail is **trimmed** |
-| min active duration | 150 ms (shorter → discarded as a bump) |
-| max active duration | 3 000 ms (longer → discarded, back to SETTLING) |
+| min active duration | 150 ms (shorter → discarded as a bump; capture keeps waiting, see below) |
+| max active duration | 3 000 ms (longer → discarded, back to SETTLING; capture reports "too long") |
 | timestamp gap > 200 ms or non-monotonic | reset to SETTLING / drop sample |
+
+Discards carry a reason (`TOO_SHORT`, `TOO_LONG`). Live detection ignores both. Capture (AC-C4) ends the attempt
+with "too long" on `TOO_LONG`. It treats `TOO_SHORT` as a bump and keeps waiting. The validator's 250 ms floor then
+reports "too short" for segments between 150 and 250 ms.
 
 States: `SETTLING` (needs 500 ms quiet) → `ARMED` → `ACTIVE` → (500 ms quiet) emit segment → `ARMED`.
 `ACTIVE` > max → `SETTLING`. Registration starts in `SETTLING`. This absorbs gravity-filter warm-up and the jolt
