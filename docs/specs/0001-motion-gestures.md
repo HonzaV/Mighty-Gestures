@@ -562,8 +562,8 @@ deterministic):
 | F5 (sensor delivery via accessibility binding) is wrong on some API level/OEM | AC-H2 gating on API 35 + 37 + real device; documented FGS + accessibility fallback (ADR 0007 Option C) |
 | False positives in everyday handling | device-frame matching, distinctiveness gate, collision check, zero-FP negative corpus, cooldown, lock-screen opt-in default off, screen-off never |
 | Thresholds wrong: calibrated only on synthetic motion (decision 5), so tuning is circular | held-out seeds; literature-based parameter ranges; `MotionConfig` KDoc and CHANGELOG say "provisional"; **AC-R1 release gate**: real-motion validation before the first public release; raw template storage lets templates be re-derived after re-calibration |
-| Accelerometer-only devices discriminate worse: a pick-up resembles an ACC-only chop, and twist cannot be recorded ACC-only | open question 14; milestone #3 must cover chop/ACC-only in AC-M4 instead of leaving it out |
-| Validator energy gate rejects gentle real users; synthetic peaks were raised to pass it | open question 15; the milestone #3 sweep includes the validator gates; AC-R1 |
+| Accelerometer-only devices discriminate worse: a pick-up resembles an ACC-only chop, and twist cannot be recorded ACC-only | decision 14 (stricter ACC-only threshold); milestone #3 must cover chop/ACC-only in AC-M4 instead of leaving it out |
+| Validator energy gate rejects gentle real users; synthetic peaks were raised to pass it | decision 15 (realistic peaks, tune the gate); the milestone #3 sweep includes the validator gates; AC-R1 |
 | Synthetic model is unrealistic (e.g. walking too regular), so the negative corpus is too easy | performer and situation variability per seed; reviewer (tester) checks model plausibility (AC-M11); AC-R1 |
 | Users hold the phone differently later → misses | instruction text; future: allow adding a third exemplar (out of scope) |
 | Accessibility friction (restricted settings, warnings, APM on Android 17 *inferred*) | explainer + hint + README; never claim `isAccessibilityTool` |
@@ -614,9 +614,9 @@ recommendation; #5 differs. The original questions and recommendations are summa
     **test-only** exception (maintainer decision 2026-10-02; never a build or runtime dependency). The maintainer
     runs AC-H2/AC-A2 on one real phone as manual smoke checks.
 
-## Open questions for the maintainer
-Raised during implementation. They are numbered after the resolved decisions so that "decision N" and "open
-question N" never collide. Both are **undecided**. Once answered, each moves to "Resolved decisions".
+## Decisions taken during implementation
+Raised during milestone #1 and answered by the maintainer on 2026-10-04. They continue the numbering of the
+resolved decisions above.
 
 14. **Chop-like gestures on accelerometer-only devices** (milestone #1 finding, 2026-10-04). On the synthetic
     corpus, the "pick up from table" negative lands at a distance of ~0.95–1.0 from an ACC-only chop template,
@@ -631,6 +631,10 @@ question N" never collide. Both are **undecided**. Once answered, each moves to 
     - ACC-only templates get a stricter threshold;
     - the validator warns about or rejects chop-like movements on gyro-less devices;
     - the limitation is accepted and documented for gyro-less devices.
+
+    — **Decided: stricter threshold.** ACC-only templates get their own, tighter match threshold, tuned in the
+    milestone #3 sweep. If chop/ACC-only still collides with pick-up after tuning, the recorder warns on gyro-less
+    devices that the movement may trigger by accident.
 15. **Validator mean-energy gate vs gentle performers** (milestone #1 finding, 2026-10-04; calibration in
     milestone #3, final answer needs AC-R1). The mean-energy gate (`mean(|lin|²/A_on² + |ω|²/G_on²) ≥ 4`, ADR 0008)
     demands vigorous motion. For every synthetic reference gesture to record at the gentle 0.7× end of the ±30 %
@@ -641,8 +645,13 @@ question N" never collide. Both are **undecided**. Once answered, each moves to 
     - the peaks were raised in order to pass the gate, so AC-M3 recall in milestone #3 is circular evidence for
       this gate.
 
-    Question: should the synthetic peaks stay raised? The alternative is to return them to literature-plausible
-    values and let the milestone #3 sweep move the energy gate (and the peak gate) instead.
+    — **Decided: realistic peaks, tune the gate.** Milestone #3 returns the synthetic peaks to realistic values
+    (twist within 4–8 rad/s) and lowers the energy gate (and the peak gate if needed) until gentle realistic
+    performers record, with zero new false positives in the AC-M4 corpus.
+16. **Collision check ignores the duration/RMS gates** (ADR 0008, 2026-10-04 note). — **Decided: keep blocking.**
+    A new gesture with the same shape as an existing one is rejected even when it differs by more than 2× in
+    tempo or strength, although live detection could tell them apart. Simpler, and users don't end up with two
+    gestures they can confuse.
 
 ## Implementation order
 One spec, delivered **PR by PR, one branch per milestone**, each branched from up-to-date `main` after the
