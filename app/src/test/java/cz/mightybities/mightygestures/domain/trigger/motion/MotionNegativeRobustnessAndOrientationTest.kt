@@ -40,18 +40,26 @@ import org.junit.Test
  * be a new finding, not a restatement of decision 14).
  *
  * Two **new** cross-orientation findings were found while writing #3 and are reported, not fixed
- * (tester guardrails), each isolated into its own `@Ignore`'d test with a characterization run in
- * its KDoc: `shake`/ACC-only collides with "rotate to landscape" probed at 90 deg about Y (30/50
- * attempts across 10 seeds x 5 amplitudes, distance 0.833-0.929), and `chop`/ACC-only collides with
- * the same situation probed at 90 deg about X (36/50, distance 0.644-0.963). Every other cell of
- * every sweep in this file still runs and must still pass; see the two `FINDING --` tests below.
+ * (tester guardrails), each isolated into its own `@Ignore`'d test with a per-amplitude
+ * characterization run in its KDoc: `shake`/ACC-only collides with "rotate to landscape" probed at
+ * 90 deg about Y, but only at 1.8x-2.6x amplitude (~126-182 deg of yaw, past a real landscape
+ * turn); `chop`/ACC-only collides with the same situation probed at 90 deg about X starting at
+ * 1.4x (~98 deg, close to a real turn) -- higher severity, since it fires closer to realistic use.
+ * Both are gate-limited, not distance-limited: every attempt that clears the matcher's
+ * duration/RMS gates matches; the gate is the only thing separating a fire from a miss. Every
+ * other cell of every sweep in this file still runs and must still pass; see the two
+ * `FINDING --` tests below.
  *
- * Known gap: for `shake`/6-D and `chop`/ACC-only (decision 14's exclusion applied), **none** of
- * this reduced situation corpus's duration/RMS profiles clear those two templates' matcher gates at
- * any disturbance (`reachedDtw == 0`, printed as a `WARNING` in the test output) -- the "no false
- * positive" result the disturbance sweep reports for those two templates is therefore vacuous with
- * this corpus, not evidence of correctness. `chop`/6-D, `twist`/6-D and `shake`/ACC-only all do
- * reach DTW against this corpus.
+ * Known gap: for `shake`/6-D (disturbance sweep only), **none** of the *shared*
+ * [negativeSituations] corpus's duration/RMS profiles clear that template's matcher gates at any
+ * disturbance (`reachedDtw == 0`, printed as a `WARNING` in the test output) -- its "no false
+ * positive" result is vacuous with this corpus, not evidence of correctness. `chop`/ACC-only's
+ * disturbance sweep adds one extra, higher-amplitude `put down on table` probe (see
+ * `extraSituations`/`PUTDOWN_EXTENDED_AMPLITUDE`) specifically so that one is *not* vacuous (it
+ * reaches DTW and misses, distance ~1.65-1.72 against tau=1.0); every negative *other* than that
+ * extra probe is still gate-rejected against `chop`/ACC-only in the disturbance sweep, same as
+ * `shake`/6-D. `chop`/6-D, `twist`/6-D and `shake`/ACC-only all reach DTW against the unmodified
+ * shared corpus.
  */
 class MotionNegativeRobustnessAndOrientationTest {
     private val config = MotionConfig()
@@ -59,13 +67,17 @@ class MotionNegativeRobustnessAndOrientationTest {
     private val preprocessor = Preprocessor(config)
 
     /** One template under test in the disturbance/cross-orientation sweeps: which gesture, which
-     * channel set, and which negative situations to skip (by name, each skip must cite a reason at
-     * the call site -- see spec 0001 decision 14 for the only one used here). */
+     * channel set, which negative situations to skip (by name, each skip must cite a reason at the
+     * call site -- see spec 0001 decision 14 for the only one used here), and any
+     * [extraSituations] to add *only* for this template (not the shared [negativeSituations]
+     * list, so widening a probe for one template's sake never changes what every other template's
+     * sweep tests -- see the chop/ACC-only put-down extension below). */
     private data class Template(
         val label: String,
         val gesture: (PerformerVariation) -> MotionSegmentSpec,
         val hasGyro: Boolean,
         val excludedSituations: Set<String> = emptySet(),
+        val extraSituations: List<Pair<String, List<Pair<Long, MotionSegmentSpec>>>> = emptyList(),
     )
 
     /** One sensor-disturbance under test; both the template and every probe in a given test run
@@ -176,13 +188,29 @@ class MotionNegativeRobustnessAndOrientationTest {
     fun `no negative except pickup matches a chop template, ACC-only, under any AC-M5 disturbance (decision 14)`() {
         // Every negative EXCEPT "pickup from table" (decision 14's documented collision) is run
         // here, including "put down on table" (pickup's mirror): a collision there would be a new
-        // finding, not a restatement of decision 14, so it is deliberately NOT pre-excluded.
+        // finding, not a restatement of decision 14, so it is deliberately NOT pre-excluded. The
+        // shared negativeSituations()'s own "put down on table" entries (amplitude 1.0x-1.8x) are
+        // all gate-rejected outright against this specific template (verified: a scratch run during
+        // test development showed 0 of 10 reaching DTW at 1.0x-2.2x, first reaching DTW, with no
+        // match, at 2.6x) -- extraSituations adds exactly that one higher-amplitude put-down probe,
+        // for this template only, so the "no collision" result below is not vacuous for put-down.
         assertNoFalsePositiveUnderAnyDisturbance(
             Template(
                 "chop/ACC-only",
                 GesturePrimitives::chop,
                 hasGyro = false,
                 excludedSituations = setOf("pickup from table"),
+                extraSituations =
+                    listOf(
+                        "put down on table (extended amplitude, decision 14 mirror check)" to
+                            listOf(
+                                SEED_PUTDOWN_EXTENDED to
+                                    putDownOnTable(
+                                        peakAngularRateRadPerSecond = PICKUP_GYRO_PEAK * PUTDOWN_EXTENDED_AMPLITUDE,
+                                        peakLiftAcceleration = PICKUP_ACC_PEAK * PUTDOWN_EXTENDED_AMPLITUDE,
+                                    ),
+                            ),
+                    ),
             ),
         )
     }
@@ -255,7 +283,7 @@ class MotionNegativeRobustnessAndOrientationTest {
         var attempts = 0
         var segmented = 0
         var reachedDtw = 0
-        for ((situationName, situationAttempts) in negativeSituations()) {
+        for ((situationName, situationAttempts) in negativeSituations() + template.extraSituations) {
             if (situationName in template.excludedSituations) continue
             var situationMinDistance = Float.POSITIVE_INFINITY
             for ((seed, spec) in situationAttempts) {
@@ -447,15 +475,23 @@ class MotionNegativeRobustnessAndOrientationTest {
      * `chop`/ACC-only, template recorded at `Quaternion.IDENTITY`, collides with the "rotate to
      * landscape" negative when the *probe* is at a device orientation tilted 90 deg about body X.
      *
-     * Characterization (10 seeds x this situation's 5 amplitude steps = 50 independent attempts,
-     * scratch run during test development, not committed): **36 of 50 attempts matched**, distance
-     * range **0.644-0.963** (tau = 1.0) -- an even more robust collision than the shake/ACC-only
-     * finding below, across both seeds and the whole amplitude range, not a one-off. This is a
-     * second, independent instance of the same underlying weakness spec 0001 decision 14 already
-     * named for ACC-only chop (gravity-removed, chop's only signal is a single RMS-normalized
-     * translational pulse) -- but at a *different* probe orientation and against a *different*
-     * negative situation than decision 14's own same-orientation pickup finding, so it is reported
-     * as its own finding rather than folded into that exclusion.
+     * Characterization (10 noise seeds x 5 amplitude levels, 1.0x-2.6x in 0.4x steps -- wider than
+     * the shared [negativeSituations]' own 1.0x-1.8x sweep for this situation -- = 50 independent
+     * attempts, scratch run during test development, not committed): the matcher's duration/RMS
+     * gates, not the DTW distance, are what separates "fires" from "doesn't" here --
+     * - **1.0x (~70 deg of yaw)**: gate-rejected on all 10 seeds (never reaches DTW);
+     * - **1.4x (~98 deg, close to a real ~90 deg landscape turn)**: gate-rejected on 4 of 10 seeds,
+     *   **matches on the other 6 of 10** (distances in the low end of the 0.644-0.963 range below);
+     * - **1.8x-2.6x (~126-182 deg)**: matches on **all 10 of 10** seeds at every level.
+     *
+     * Every attempt that clears the gates matches; the gate is the only thing separating a fire
+     * from a miss. 1.4x is within range of how far someone might actually rotate a phone, which is
+     * why this is reported as medium-to-high severity, not a remote edge case. This is a second,
+     * independent instance of the same underlying weakness spec 0001 decision 14 already named for
+     * ACC-only chop (gravity-removed, chop's only signal is a single RMS-normalized translational
+     * pulse) -- but at a *different* probe orientation and against a *different* negative situation
+     * than decision 14's own same-orientation pickup finding, so it is reported as its own finding
+     * rather than folded into that exclusion.
      *
      * The same situation produces zero false positives against the same template at a shared
      * (identity) orientation ([assertNoFalsePositiveUnderAnyDisturbance], which excludes only
@@ -469,9 +505,10 @@ class MotionNegativeRobustnessAndOrientationTest {
      */
     @Ignore(
         "FINDING (not fixed, see KDoc): chop/ACC-only collides with 'rotate to landscape' probed at " +
-            "90deg-about-X; 36/50 attempts matched across 10 seeds x 5 amplitude steps, distances " +
-            "0.644-0.963 < tau=1.0 -- report to maintainer/developer, candidate for milestone 3's " +
-            "ACC-only threshold work",
+            "90deg-about-X; gate-rejected at 1.0x (~70deg yaw, 0/10 seeds), matches at 1.4x " +
+            "(~98deg, 6/10 seeds) and 1.8x-2.6x (~126-182deg, 10/10 seeds), distances 0.644-0.963 " +
+            "< tau=1.0 -- report to maintainer/developer, candidate for milestone 3's ACC-only " +
+            "threshold work",
     )
     @Test
     fun `FINDING -- chop template, ACC-only, collides with rotate-to-landscape probed at 90deg-about-X`() {
@@ -508,15 +545,19 @@ class MotionNegativeRobustnessAndOrientationTest {
      * landscape" negative when the *probe* is at a device orientation tilted 90 deg about body Y
      * (landscape).
      *
-     * Characterization (10 seeds x this situation's 5 amplitude steps = 50 independent attempts,
-     * scratch run during test development, not committed): **30 of 50 attempts matched**, distance
-     * range **0.833-0.929** (tau = 1.0) -- a robust collision across seeds, not a one-off single
-     * distance. The amplitude-step-2 probe quoted in the original finding (seed 14002, distance
-     * 0.927) peaks at 5.76 rad/s (`ROTATE_GYRO_PEAK` 3.2 * amplitude 1.8); the rotation is a single
-     * one-directional half-sine (not a there-and-back biphasic lobe like the gesture primitives),
-     * so its time integral is a real, permanent reorientation of about 126 degrees of yaw --
-     * reported here so the maintainer can judge how realistic that probe situation is, not just
-     * see one distance number.
+     * Characterization (10 noise seeds x 5 amplitude levels, 1.0x-2.6x in 0.4x steps -- wider than
+     * the shared [negativeSituations]' own 1.0x-1.8x sweep for this situation -- = 50 independent
+     * attempts, scratch run during test development, not committed): unlike the chop/ACC-only
+     * finding below, this one is gate-rejected up to a *less* realistic rotation --
+     * - **1.0x-1.4x (~70-98 deg of yaw, i.e. up to past a real ~90 deg landscape turn)**:
+     *   gate-rejected on all 10 seeds at both levels (never reaches DTW);
+     * - **1.8x-2.6x (~126-182 deg)**: matches on **all 10 of 10** seeds at every level, distances
+     *   in the 0.833-0.929 range.
+     *
+     * So this collision only fires on rotations past a real landscape turn, which is lower severity
+     * than the chop/ACC-only finding below (which already matches at ~98 deg, close to realistic).
+     * Every attempt that clears the gates matches; the gate is the only thing separating a fire from
+     * a miss, for both findings.
      *
      * The same situation produces zero false positives against the same template at a shared
      * (identity) orientation ([assertNoFalsePositiveUnderAnyDisturbance]) and in
@@ -536,9 +577,10 @@ class MotionNegativeRobustnessAndOrientationTest {
      */
     @Ignore(
         "FINDING (not fixed, see KDoc): shake/ACC-only collides with 'rotate to landscape' probed at " +
-            "90deg-about-Y; 30/50 attempts matched across 10 seeds x 5 amplitude steps, distances " +
-            "0.833-0.929 < tau=1.0 -- report to maintainer/developer, candidate for milestone 3's " +
-            "ACC-only threshold work",
+            "90deg-about-Y; gate-rejected at 1.0x-1.4x (~70-98deg yaw, 0/10 seeds each), matches at " +
+            "1.8x-2.6x (~126-182deg, 10/10 seeds each), distances 0.833-0.929 < tau=1.0 -- lower " +
+            "severity than the chop/ACC-only finding (fires only past a real landscape turn) -- " +
+            "report to maintainer/developer, candidate for milestone 3's ACC-only threshold work",
     )
     @Test
     fun `FINDING -- shake template, ACC-only, collides with rotate-to-landscape probed at 90deg-about-Y`() {
@@ -632,6 +674,14 @@ class MotionNegativeRobustnessAndOrientationTest {
         const val PROBE_SEED = 9201L
         const val SEED_PICKUP = 11000L
         const val SEED_PUTDOWN = 12000L
+        const val SEED_PUTDOWN_EXTENDED = 12100L
+
+        /** 2.6x the base peaks: the first amplitude step (verified by a scratch run during test
+         * development, sweeping 1.0x-3.4x) at which "put down on table" actually clears
+         * chop/ACC-only's matcher gates at all (0 of 10 noise seeds gate-rejected; every one that
+         * reaches DTW misses). Below this (1.0x-2.2x, including the shared negativeSituations()
+         * steps), every attempt is gate-rejected outright, so it never probes the matcher. */
+        const val PUTDOWN_EXTENDED_AMPLITUDE = 2.6f
         const val SEED_TILT = 13000L
         const val SEED_ROTATE = 14000L
         const val SEED_WALK = 15000L
