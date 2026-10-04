@@ -239,7 +239,8 @@ IDs are referenced by tests and reviews. "Device" = verified on emulator AVD `mg
 36. **AC-A6** (decision 8) Do Not Disturb toggles an app-owned "Mighty Gestures" mode on/off
     (explicit `AutomaticZenRule`).
     Without access → `Failed(MissingAccess(NOTIFICATION_POLICY))` and the row needs attention. Deleting the last
-    DND gesture removes the app's mode.
+    DND gesture removes the app's mode. If the user disabled the mode in Settings →
+    `Failed(DoNotDisturbModeDisabled)`; the gesture never re-enables it.
 37. **AC-A7** Sound mode sets the chosen ringer mode. Without access → `Failed(MissingAccess)`. If
     `isVolumeFixed()` → `Failed(Unsupported)`.
 38. **AC-A8** `platform/action` and `domain/action` never import from `…domain.trigger` (code review; a grep
@@ -411,7 +412,9 @@ trigger/action DTOs and templates as base64 primitive arrays. A schema fixture i
   does not clear the snooze (verified, same file, `updateSnoozing`); the toggle may then need one extra gesture
   (*inferred*; device check in PR #6). Which releases enable
   `modes_ui` is *inferred* (Android 16+). `addAutomaticZenRule` throws `SecurityException` without policy
-  access (verified).
+  access (verified). If the rule exists but the user disabled it in Settings, we fail with
+  `DoNotDisturbModeDisabled` instead of re-enabling or recreating it, respecting that choice (maintainer
+  decision 2026-10-04).
 - **Sound mode.** `AudioManager.setRingerMode(NORMAL|VIBRATE|SILENT)`. "Ringer mode adjustments that would toggle
   Do Not Disturb are not allowed unless the app has been granted Notification Policy Access" (verified,
   https://developer.android.com/reference/android/media/AudioManager#setRingerMode(int)). Which transitions
