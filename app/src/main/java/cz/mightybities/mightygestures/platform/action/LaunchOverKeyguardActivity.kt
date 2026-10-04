@@ -15,7 +15,7 @@ import androidx.annotation.VisibleForTesting
 enum class KeyguardDismissOutcome { SUCCEEDED, CANCELLED, ERROR }
 
 /**
- * Thin seam over `KeyguardManager.requestDismissKeyguard` (API 23, verified), so
+ * Thin seam over `KeyguardManager.requestDismissKeyguard` (API 26, verified in the SDK's api-versions.xml), so
  * [LaunchOverKeyguardActivity] can be driven by a hand-written fake instead of the real framework callback in
  * most tests — [AndroidKeyguardDismisserTest] covers the real glue separately (docs/engineering/testing.md:
  * test isolation, not a Robolectric capability gap).
