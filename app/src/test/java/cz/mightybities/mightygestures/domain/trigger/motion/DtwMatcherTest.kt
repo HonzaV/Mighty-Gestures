@@ -36,6 +36,37 @@ class DtwMatcherTest {
         assertTrue("narrow band ($narrow) should cost more than a wide band ($wide)", narrow > wide)
     }
 
+    /**
+     * GitHub Copilot PR #6 round-3 finding: a caller-supplied `bandRadius` large enough that
+     * `i + bandRadius` overflows Int (see [distance]'s `loJ`/`hiJ` computation) made `hiJ` wrap
+     * negative, so the band loop (`loJ..hiJ`) visited zero cells and every distance -- even between
+     * identical sequences -- came back [Float.POSITIVE_INFINITY]. [MotionConfig] now rejects an
+     * oversized `dtwBandFrames` at construction (see `MotionConfigTest`), but [DtwMatcher] is
+     * `internal` and directly constructible within this module, so it also clamps `bandRadius` to
+     * [frameCount] itself as defense in depth: a band that wide already reaches every cell (full
+     * DTW), so clamping changes nothing it computes.
+     */
+    @Test
+    fun `an oversized bandRadius does not overflow and still gives zero distance for identical sequences`() {
+        val dtw = DtwMatcher(frameCount = 4, bandRadius = Int.MAX_VALUE)
+        val a = floatArrayOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f)
+        assertEquals(0f, dtw.distance(a, a.copyOf(), dim = 2), 0f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a negative bandRadius`() {
+        // Also proves the init block's "require(bandRadius >= 0)" really reads the constructor
+        // parameter, not the (shadowing, not-yet-initialized) clamped property: if it read the
+        // property instead, a negative input would silently see the JVM's zero-initialized default
+        // and never throw.
+        DtwMatcher(frameCount = 4, bandRadius = -1)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a non-positive frameCount`() {
+        DtwMatcher(frameCount = 0, bandRadius = 1)
+    }
+
     @Test
     fun `reused matcher gives the same distance on repeated calls`() {
         val dtw = DtwMatcher(frameCount = 4, bandRadius = 2)

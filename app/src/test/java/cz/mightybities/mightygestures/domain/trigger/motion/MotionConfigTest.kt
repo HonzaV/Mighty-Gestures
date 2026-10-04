@@ -66,4 +66,31 @@ class MotionConfigTest {
     fun `defaults satisfy every invariant`() {
         MotionConfig() // must not throw
     }
+
+    // GitHub Copilot PR #6 round-3 finding: "resampledFrameCount > 2 * dtwBandFrames" multiplied
+    // in Int arithmetic, so dtwBandFrames = Int.MAX_VALUE overflowed "2 * dtwBandFrames" to -2,
+    // which any positive resampledFrameCount is ">" -- the invariant silently passed for a band
+    // that then overflows DtwMatcher's own i +/- bandRadius index math (see DtwMatcherTest).
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a dtwBandFrames so large that 2 times it overflows Int arithmetic`() {
+        MotionConfig(dtwBandFrames = Int.MAX_VALUE)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a dtwBandFrames just past the Int overflow boundary`() {
+        MotionConfig(dtwBandFrames = Int.MAX_VALUE / 2 + 1)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects a resampledFrameCount too large for DtwMatcher's size times size tables`() {
+        // DtwMatcher preallocates size*size Float/Int arrays, size = frameCount + 1: this must stay
+        // within Int range (see MotionConfig.MAX_RESAMPLED_FRAME_COUNT's KDoc for the exact bound).
+        MotionConfig(resampledFrameCount = MotionConfig.MAX_RESAMPLED_FRAME_COUNT + 1, dtwBandFrames = 1)
+    }
+
+    @Test
+    fun `accepts the largest allowed resampledFrameCount`() {
+        MotionConfig(resampledFrameCount = MotionConfig.MAX_RESAMPLED_FRAME_COUNT, dtwBandFrames = 1) // must not throw
+    }
 }

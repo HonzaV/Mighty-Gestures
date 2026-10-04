@@ -36,8 +36,23 @@ package cz.mightybities.mightygestures.domain.trigger.motion
  */
 internal class DtwMatcher(
     private val frameCount: Int,
-    private val bandRadius: Int,
+    bandRadius: Int,
 ) {
+    init {
+        require(frameCount >= 1) { "frameCount must be >= 1" }
+        require(bandRadius >= 0) { "bandRadius must be >= 0" }
+    }
+
+    /** Clamped to [frameCount]: a band this wide already reaches every cell (full DTW), so
+     * clamping changes nothing this matcher actually computes, but keeps `i + bandRadius` (see
+     * [distance]'s `hiJ`) from overflowing Int for a caller-supplied oversized value, which used to
+     * make the band loop visit zero cells and return [Float.POSITIVE_INFINITY] even for identical
+     * sequences (GitHub Copilot PR #6 round-3 finding). [MotionConfig] separately rejects an
+     * oversized `dtwBandFrames` at construction, so this is defense in depth for this `internal`,
+     * directly-constructible type (see [DtwMatcherTest]). The right-hand side's `bandRadius` refers
+     * to the constructor parameter above, not this property (standard Kotlin shadowing idiom). */
+    private val bandRadius: Int = minOf(bandRadius, frameCount)
+
     private val size = frameCount + 1
     private val cost = FloatArray(size * size) { Float.POSITIVE_INFINITY }
     private val pathLength = IntArray(size * size)

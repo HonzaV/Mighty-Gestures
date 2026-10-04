@@ -114,8 +114,20 @@ data class MotionConfig(
         require(validatorPeakAccThreshold > 0f) { "validatorPeakAccThreshold must be positive" }
         require(validatorPeakGyroThreshold > 0f) { "validatorPeakGyroThreshold must be positive" }
         require(validatorMinMeanEnergy > 0f) { "validatorMinMeanEnergy must be positive" }
-        require(resampledFrameCount > 2 * dtwBandFrames) { "resampledFrameCount must exceed the DTW band" }
         require(dtwBandFrames > 0) { "dtwBandFrames must be positive" }
+        require(resampledFrameCount in 1..MAX_RESAMPLED_FRAME_COUNT) {
+            "resampledFrameCount must be in 1..$MAX_RESAMPLED_FRAME_COUNT (DtwMatcher's cost/pathLength " +
+                "tables are Int-indexed, size * size where size = resampledFrameCount + 1)"
+        }
+        // GitHub Copilot PR #6 round-3 finding: this used to multiply in Int arithmetic
+        // ("resampledFrameCount > 2 * dtwBandFrames"), so dtwBandFrames = Int.MAX_VALUE overflowed
+        // "2 * dtwBandFrames" to -2, which any positive resampledFrameCount is ">" -- the invariant
+        // silently passed for a band that then overflows DtwMatcher's own `i +/- bandRadius` index
+        // math (see DtwMatcherTest), visiting zero cells and returning POSITIVE_INFINITY even for
+        // identical inputs. Comparing in Long arithmetic closes that gap.
+        require(resampledFrameCount.toLong() > 2L * dtwBandFrames) {
+            "resampledFrameCount must exceed the DTW band"
+        }
         require(durationRatioMin > 0f) { "durationRatioMin must be positive" }
         require(durationRatioMin < durationRatioMax) { "durationRatioMin must be < durationRatioMax" }
         require(rmsRatioMin > 0f) { "rmsRatioMin must be positive" }
@@ -124,5 +136,15 @@ data class MotionConfig(
         require(collisionDistanceMultiplier > 0f) { "collisionDistanceMultiplier must be positive" }
         require(captureNoMovementTimeoutNanos > 0L) { "captureNoMovementTimeoutNanos must be positive" }
         require(algorithmVersion >= 1) { "algorithmVersion must be >= 1" }
+    }
+
+    companion object {
+        /** The largest [resampledFrameCount] [DtwMatcher] can hold without its own Int-indexed
+         * `size * size` cost/path-length tables overflowing (GitHub Copilot PR #6 round-3 finding):
+         * `size = resampledFrameCount + 1`, and `size * size` must stay `<= Int.MAX_VALUE`
+         * (2,147,483,647). `floor(sqrt(Int.MAX_VALUE)) = 46_340` (46_340² = 2,147,395,600 fits;
+         * 46_341² = 2,147,488,281 overflows), so `size <= 46_340`, i.e. `resampledFrameCount <=
+         * 46_339`. Far above the default (64); this bound only rejects a pathological config. */
+        const val MAX_RESAMPLED_FRAME_COUNT: Int = 46_339
     }
 }
