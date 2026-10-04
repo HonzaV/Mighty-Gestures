@@ -184,7 +184,8 @@ CSV per docs/engineering/testing.md: header `timestamp_ns,sensor,x,y,z`, sensors
   held between samples, just keyed correctly.
 - **2026-10-04 (spec 0001 milestone #1 docs pass):** "Collision check" above, made precise to match
   `MotionMatcher.collidesWith` (verified, read in the code):
-  - Every new exemplar passed in (expected: recording and confirmation) is compared with every existing exemplar passed in.
+  - Every new exemplar passed in (expected: recording and confirmation) is compared with every existing
+    exemplar passed in.
     The first pair within `matchThreshold × collisionDistanceMultiplier` (defaults `1.0 × 1.2`) returns `true`.
   - The distance is the plain normalized DTW distance from "Matcher" step 2. The duration and RMS ratio gates
     (step 1) are **skipped**. A near-duplicate shape should block creation even at a different tempo or
