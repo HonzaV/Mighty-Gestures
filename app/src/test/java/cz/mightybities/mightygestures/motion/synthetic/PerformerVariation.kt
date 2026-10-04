@@ -20,6 +20,14 @@ data class PerformerVariation(
     val leadInSeconds: Float,
     val tailSeconds: Float,
 ) {
+    /**
+     * The static grip tilt as an initial orientation, for callers that render this variation with
+     * [SensorModel.generate] (item C10 of the PR #1 fix round: the grip tilt was sampled but never
+     * applied to anything). Composing an X-tilt and a Y-tilt this way is a small-angle
+     * approximation of "holding the phone a bit differently", not an exact biomechanical model.
+     */
+    fun initialOrientation(): Quaternion = Quaternion.aboutY(gripTiltDegreesY) * Quaternion.aboutX(gripTiltDegreesX)
+
     companion object {
         fun sample(noise: NoiseSource) =
             PerformerVariation(

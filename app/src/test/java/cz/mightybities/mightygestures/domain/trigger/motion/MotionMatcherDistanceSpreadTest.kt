@@ -38,12 +38,14 @@ private class SpreadDistances {
  * cases (AC-M10). If it can't, that is a "threshold makes an AC impossible" finding to report, not
  * something to paper over by changing the cost function here.
  *
- * **Finding on this corpus:** the 3-D (ACC-only) margin is far thinner than the 6-D one — e.g.
- * chop vs. twist comes within ~20 % of τ without a gyroscope, because twist's only ACC signature
- * is gravity leaking through the gravity filter during its rotation (ADR 0008 "Consequences"),
- * which is itself a single bell-shaped pulse that resembles chop's genuine translational one once
- * both are RMS-normalized. This is the ADR's accepted "reduced discrimination" trade-off for
- * gyro-less devices showing up concretely, not a bug in this test or the matcher.
+ * **Finding on this corpus** (PR #1 fix round, item C13, re-measured after the biphasic gesture
+ * shapes of item C9 and the re-tuned peaks of item B7): max-positive/min-negative is about
+ * 0.13/4.3 in 6-D (roughly 33x margin) and about 0.10/1.6 ACC-only (roughly 16x margin) at τ=1.0.
+ * Both comfortably separated, but the 3-D (ACC-only) margin is still the thinner of the two —
+ * twist's only ACC signature is gravity leaking through the gravity filter during its rotation
+ * (ADR 0008 "Consequences"), which resembles chop's genuine translational signature more than a
+ * gyro-equipped comparison would. This is the ADR's accepted "reduced discrimination" trade-off
+ * for gyro-less devices showing up concretely, not a bug in this test or the matcher.
  */
 class MotionMatcherDistanceSpreadTest {
     private val config = MotionConfig()

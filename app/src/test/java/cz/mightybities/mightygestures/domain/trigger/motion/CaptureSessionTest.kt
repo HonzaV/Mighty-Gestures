@@ -12,10 +12,12 @@ import cz.mightybities.mightygestures.motion.synthetic.VectorProfile
 import cz.mightybities.mightygestures.motion.synthetic.concat
 import cz.mightybities.mightygestures.motion.synthetic.feedTo
 import cz.mightybities.mightygestures.motion.synthetic.stillness
-import cz.mightybities.mightygestures.motion.synthetic.walking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Record -> confirm (spec 0001 "Create gesture" steps 2-3, AC-C2-C5), using the real
@@ -138,7 +140,25 @@ class CaptureSessionTest {
     fun `a movement over 3s is rejected as too long (AC-C4)`() {
         val session = newSession()
         session.startRecording(0L)
-        val trace = concat(listOf(stillness(0.6f), walking(6f, config = config)))
+        // A sustained, unambiguously-active (well above accOnsetThreshold) signal with no quiet
+        // gap for 4s: walking() no longer serves this (PR #1 fix round, item C11 -- at realistic
+        // amplitudes it never crosses onset at all, so it cannot demonstrate TOO_LONG).
+        // A constant-magnitude vector rotating in the X-Y plane, not a fixed-axis constant: any
+        // sustained signal on one fixed axis -- any axis, not just gravity's -- eventually gets
+        // absorbed into the gravity filter's estimate once it settles (the same reason walking()
+        // moved off a single fixed axis, item C11), which would read as "quiet" again well before
+        // 4s. Rotating keeps every individual axis zero-mean while the magnitude stays constant.
+        val overlong =
+            MotionSegmentSpec(
+                durationSeconds = 4f,
+                linWorld =
+                    VectorProfile { t ->
+                        val phase = TWO_PI * OVERLONG_ROTATION_HZ * t
+                        Vector3(OVERLONG_ACCELERATION * sin(phase), OVERLONG_ACCELERATION * cos(phase), 0f)
+                    },
+                angularBody = VectorProfile { Vector3.ZERO },
+            )
+        val trace = concat(listOf(stillness(0.6f), overlong))
         SensorModel().generate(trace, Quaternion.IDENTITY, hasGyro = true, noise = NoiseSource(14)).feedTo(session)
         assertEquals(CaptureResult.TooLong, session.result)
     }
@@ -239,5 +259,8 @@ class CaptureSessionTest {
         const val FRAME_TOLERANCE_NANOS = 20_000_000L // one frame at 50Hz
         const val GRAVITY_Z = 9.81f
         const val QUIET_ACC_Z_DEVIATION_SQ = 4f // |deviation| < 2 m/s^2, comfortably under A_off=1.5 squared-ish
+        const val OVERLONG_ACCELERATION = 10f // comfortably above accOnsetThreshold=3.0
+        const val OVERLONG_ROTATION_HZ = 1.5f
+        val TWO_PI = (2.0 * PI).toFloat()
     }
 }
