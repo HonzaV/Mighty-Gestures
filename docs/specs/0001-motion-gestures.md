@@ -207,7 +207,9 @@ IDs are referenced by tests and reviews. "Device" = verified on emulator AVD `mg
 25. **AC-M5** Robustness: identical verdicts (match/no-match, ± 1 frame boundaries) at 50/100/200 Hz, ± 2 ms
     timestamp jitter, 5 % dropped samples, ± 0.2 m/s² bias, any static gravity orientation.
 26. **AC-M6** Timing: a movement starting during SETTLING is not segmented. Two movements separated by ≥ 600 ms
-    of quiet give two segments; by < 500 ms, one. A rule matched twice within 1.5 s fires once.
+    of quiet give two segments; by < 500 ms, one. A rule matched twice within 1.5 s fires once. *The
+    segmentation sentences are verified in milestone #1 (`SegmenterTimingTest`). The 1.5 s cooldown belongs to the
+    rule engine (ADR 0004, ADR 0008 "Cooldown"), so that sentence is verified in milestone #2.*
 27. **AC-M7** Continuous motion longer than 3 s (walking trace) never yields a segment.
 28. **AC-M8** When a segment matches several armed rules, only the lowest-distance rule fires.
 29. **AC-M9** The per-sample path allocates nothing. A benchmark test feeding a 10-minute 50 Hz trace asserts
@@ -560,6 +562,8 @@ deterministic):
 | F5 (sensor delivery via accessibility binding) is wrong on some API level/OEM | AC-H2 gating on API 35 + 37 + real device; documented FGS + accessibility fallback (ADR 0007 Option C) |
 | False positives in everyday handling | device-frame matching, distinctiveness gate, collision check, zero-FP negative corpus, cooldown, lock-screen opt-in default off, screen-off never |
 | Thresholds wrong: calibrated only on synthetic motion (decision 5), so tuning is circular | held-out seeds; literature-based parameter ranges; `MotionConfig` KDoc and CHANGELOG say "provisional"; **AC-R1 release gate**: real-motion validation before the first public release; raw template storage lets templates be re-derived after re-calibration |
+| Accelerometer-only devices discriminate worse: a pick-up resembles an ACC-only chop, and twist cannot be recorded ACC-only | open question 14; milestone #3 must cover chop/ACC-only in AC-M4 instead of leaving it out |
+| Validator energy gate rejects gentle real users; synthetic peaks were raised to pass it | open question 15; the milestone #3 sweep includes the validator gates; AC-R1 |
 | Synthetic model is unrealistic (e.g. walking too regular), so the negative corpus is too easy | performer and situation variability per seed; reviewer (tester) checks model plausibility (AC-M11); AC-R1 |
 | Users hold the phone differently later → misses | instruction text; future: allow adding a third exemplar (out of scope) |
 | Accessibility friction (restricted settings, warnings, APM on Android 17 *inferred*) | explainer + hint + README; never claim `isAccessibilityTool` |
@@ -610,6 +614,36 @@ recommendation; #5 differs. The original questions and recommendations are summa
     **test-only** exception (maintainer decision 2026-10-02; never a build or runtime dependency). The maintainer
     runs AC-H2/AC-A2 on one real phone as manual smoke checks.
 
+## Open questions for the maintainer
+Raised during implementation. They are numbered after the resolved decisions so that "decision N" and "open
+question N" never collide. Both are **undecided**. Once answered, each moves to "Resolved decisions".
+
+14. **Chop-like gestures on accelerometer-only devices** (milestone #1 finding, 2026-10-04). On the synthetic
+    corpus, the "pick up from table" negative lands at a distance of ~0.95–1.0 from an ACC-only chop template,
+    across several seeds. That is inside τ = 1.0, so it would fire. Source: the developer's note in
+    `MotionFalsePositiveCorpusTest`; the architect did not re-run it. Without a gyroscope, chop's only signal is
+    one RMS-normalized translational pulse, and a pick-up looks similar once gravity is removed. The milestone #1
+    negative-corpus test therefore leaves out the chop/ACC-only pairing and documents why. Related: twist cannot
+    be recorded ACC-only at all, because its only accelerometer signature is gravity leakage (`GesturePrimitives`,
+    `GestureRecordabilityTest`). **This blocks AC-M4 for chop/ACC-only in milestone #3**, so that milestone must
+    not pass while the case is still left out. Options (none decided):
+    - milestone #3 calibration (τ, gates) separates the pair;
+    - ACC-only templates get a stricter threshold;
+    - the validator warns about or rejects chop-like movements on gyro-less devices;
+    - the limitation is accepted and documented for gyro-less devices.
+15. **Validator mean-energy gate vs gentle performers** (milestone #1 finding, 2026-10-04; calibration in
+    milestone #3, final answer needs AC-R1). The mean-energy gate (`mean(|lin|²/A_on² + |ω|²/G_on²) ≥ 4`, ADR 0008)
+    demands vigorous motion. For every synthetic reference gesture to record at the gentle 0.7× end of the ±30 %
+    performer amplitude range, the generator's peaks were raised to shake 24 m/s², chop 19 m/s² and twist
+    9 rad/s (verified: constants in `GesturePrimitives`; sweep in `GestureRecordabilityTest`). Twist's 9 rad/s is
+    above the 4–8 rad/s that the generator's own KDoc assumes is realistic (*assumed*, uncited). Two consequences:
+    - the gate may demand more vigor than real users apply (*inferred*);
+    - the peaks were raised in order to pass the gate, so AC-M3 recall in milestone #3 is circular evidence for
+      this gate.
+
+    Question: should the synthetic peaks stay raised? The alternative is to return them to literature-plausible
+    values and let the milestone #3 sweep move the energy gate (and the peak gate) instead.
+
 ## Implementation order
 One spec, delivered **PR by PR, one branch per milestone**, each branched from up-to-date `main` after the
 previous PR merged, unless noted otherwise. Every PR keeps `scripts/verify.sh` green and `:app` line coverage
@@ -620,8 +654,8 @@ the two non-feature PRs.
 | # | Branch | PR title | Content | ACs | Owners | Reviewers beyond code-reviewer |
 |---|---|---|---|---|---|---|
 | 0 | `chore/0001-0-api37-emulator` | `chore(harness): add api 37 emulator for targetsdk checks` | `mg_api37` in `scripts/setup-android-sdk.sh`, `device-verify` skill, AGENTS.md §6 command table (decision 13). Independent; must merge before #6 | — | developer | — |
-| 1 | `feat/0001-1-motion-core` | `feat(detector): add motion segmenter and template matcher` | catalog: coroutines-test, turbine; detekt ForbiddenImport; gravity filter, segmenter, preprocessor, DTW matcher, validator, capture session, trace CSV parser; **synthetic generator core** (sensor model, kinematics, a few gesture primitives) for unit, robustness and timing tests; benchmark. Thresholds = ADR 0008 initial values | M1, M2, M5–M8, M9, M10 | developer; tester (test design) | performance-reviewer (hot path) |
-| 2 | `feat/0001-2-rule-engine-store` | `feat(rule): add rule model, engine and gesture store` | ADR 0004 model, `RuleEngine`, `DeviceStateHolder`, DataStore + DTOs + schema fixture + corruption handler, `data_extraction_rules.xml`, `AppContainer`, `MightyGesturesApp`. **Merge only after the AGENTS.md §2 amendment is applied** (decision 1) | L3–L5 (store), H5, H6 (engine), P3 | developer; tester | security-reviewer (template persistence, backup) |
+| 1 | `feat/0001-1-motion-core` | `feat(detector): add motion segmenter and template matcher` | catalog: coroutines-test, turbine; detekt ForbiddenImport; gravity filter, segmenter, preprocessor, DTW matcher, validator, capture session, trace CSV parser; **synthetic generator core** (sensor model, kinematics, a few gesture primitives) for unit, robustness and timing tests; benchmark. Thresholds = ADR 0008 initial values | M1, M2, M5, M6 (segmentation only), M7, M8, M9, M10 | developer; tester (test design) | performance-reviewer (hot path) |
+| 2 | `feat/0001-2-rule-engine-store` | `feat(rule): add rule model, engine and gesture store` | ADR 0004 model, `RuleEngine`, `DeviceStateHolder`, DataStore + DTOs + schema fixture + corruption handler, `data_extraction_rules.xml`, `AppContainer`, `MightyGesturesApp`. **Merge only after the AGENTS.md §2 amendment is applied** (decision 1) | L3–L5 (store), H5, H6 and the M6 cooldown (engine), P3 | developer; tester | security-reviewer (template persistence, backup) |
 | 3 | `feat/0001-3-sensor-synthetic-calibration` | `feat(sensor): add sensor adapter and synthetic calibration` | `AndroidMotionSampleSource` (HandlerThread, rates, latency); **full synthetic corpus** (≥ 6 reference gestures × ≥ 10 performer seeds; all negative situations, ≥ 30 min simulated); plausibility tests; calibration sweep on tuning seeds, verification on held-out seeds; `MotionConfig` values + "provisional" KDoc; sweep table in the PR description. **No recorder, no real traces** | M3, M4, M11 (synthetic), P6 | developer (adapter, generator); tester (corpus, calibration, plausibility review) | performance-reviewer (registration, batching) |
 | 4 | `feat/0001-4-actions` | `feat(action): add app launch, torch, lock, dnd and ringer actions` | executors, launcher catalog, `<queries>`, trampoline, zen rule + `MainActivity` filter, `ACCESS_NOTIFICATION_POLICY`, special-access checker | A1–A8 (non-device parts) | developer; tester (Robolectric) | security-reviewer |
 | 5 | `feat/0001-5-gesture-ui` | `feat(ui): add gesture list and create-gesture flow` | Navigation 3, list, create flow, app picker, explainers, ViewModels, capture lifecycle binding | L1–L8, C1–C13, P5 | ui-expert (screens, semantics, previews); developer (ViewModels); tester (Compose UI + ViewModel tests) | — |
